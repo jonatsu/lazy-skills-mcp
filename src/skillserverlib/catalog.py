@@ -65,10 +65,11 @@ def load_catalog(skills_dir: Path) -> tuple[SkillEntry, ...]:
             f"lazy skills directory unreadable: {skills_dir} ({exc})"
         ) from exc
 
+    resolved_root = skills_dir.resolve()
     entries = [
         entry
         for child in children
-        if child.is_dir()
+        if child.is_dir() and _is_confined(child, resolved_root)
         for entry in (_load_skill_entry(child),)
         if entry is not None
     ]
@@ -77,6 +78,18 @@ def load_catalog(skills_dir: Path) -> tuple[SkillEntry, ...]:
         raise SkillsDirectoryError(f"lazy skills directory holds no valid skill: {skills_dir}")
 
     return tuple(sorted(entries, key=lambda entry: entry.name))
+
+
+def _is_confined(skill_dir: Path, resolved_root: Path) -> bool:
+    """Whether `skill_dir` resolves inside `resolved_root`; logs a skip when it does not.
+
+    Kasetto installs real copies, so a skill directory that resolves elsewhere, such as
+    a symlink pointing outside the lazy tier, is not part of the tier and is never served.
+    """
+    if skill_dir.resolve().is_relative_to(resolved_root):
+        return True
+    logger.warning("skipping %s: resolves outside %s", skill_dir, resolved_root)
+    return False
 
 
 def _load_skill_entry(skill_dir: Path) -> SkillEntry | None:

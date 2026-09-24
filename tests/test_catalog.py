@@ -267,17 +267,8 @@ def test_a_symlinked_skill_directory_pointing_outside_the_lazy_tier_is_excluded(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A lazy-tier child that is itself a symlink to a directory outside the lazy
-    tier must not be served: nothing in the design's confinement guarantees ("no
-    filesystem path as input", "resolve names only against the scanned catalog")
-    is honored if the top-level skill directory itself can point outside the tier.
-
-    This currently fails: `_load_skill_entry` only confines files found *inside* a
-    skill directory (`_list_other_files`'s `resolved_root` check); it never checks
-    whether the skill directory itself, as scanned from `skills_dir.iterdir()`,
-    resolves inside `skills_dir`. A symlinked top-level directory is followed by
-    `is_dir()`/`rglob` exactly like a real one, so `load_skill` ends up serving the
-    manifest and file list of whatever the symlink points at, wherever that is on
-    disk. See the mutation-testing report (F1) for the reproduction and severity.
+    tier is left out of the catalog and logged, while real skills beside it still
+    serve. Kasetto installs real copies, so such a directory is never part of the tier.
     """
     root = tmp_path / "lazy"
     root.mkdir()
@@ -289,11 +280,18 @@ def test_a_symlinked_skill_directory_pointing_outside_the_lazy_tier_is_excluded(
     )
     (outside / "leaked.txt").write_text("top secret file", encoding="utf-8")
     (root / "secret-skill").symlink_to(outside)
+    real = root / "real-skill"
+    real.mkdir()
+    (real / "SKILL.md").write_text(
+        "---\nname: real-skill\ndescription: part of the lazy tier\n---\nbody\n",
+        encoding="utf-8",
+    )
 
     with caplog.at_level(logging.WARNING):
         catalog = load_catalog(root)
 
-    assert [entry.name for entry in catalog] == [], (
+    assert "resolves outside" in caplog.text
+    assert [entry.name for entry in catalog] == ["real-skill"], (
         "a symlinked skill directory pointing outside the lazy tier must be "
         "excluded from the catalog, not served"
     )
