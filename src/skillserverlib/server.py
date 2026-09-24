@@ -19,8 +19,31 @@ from mcp.types import ToolAnnotations
 
 from skillserverlib.catalog import SkillEntry, load_catalog, manifest_path
 
-_READ_ONLY_ANNOTATIONS = ToolAnnotations(read_only_hint=True, open_world_hint=False)
+_FIND_SKILLS_TITLE = "Find skills"
+_LOAD_SKILL_TITLE = "Load skill"
+_SERVER_INSTRUCTIONS = (
+    "Serves agent skills that are not preloaded. Before domain-specific work, call "
+    "find_skills to check for a matching skill, then load_skill to read its full "
+    "instructions and follow them."
+)
+_LOAD_SKILL_DESCRIPTION = (
+    "Load one skill's full SKILL.md instructions, the absolute path of its directory, "
+    "and the relative paths of its other files. Read reference files and run bundled "
+    "scripts from that directory. Call this after find_skills names a matching skill, "
+    "before starting the work it covers."
+)
 _CLOSEST_MATCH_COUNT = 3
+
+
+def _read_only_annotations(title: str) -> ToolAnnotations:
+    """Every hint set explicitly: both tools only read local files, repeatably."""
+    return ToolAnnotations(
+        title=title,
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    )
 
 
 class SkillSummary(TypedDict):
@@ -54,7 +77,8 @@ def _find_skills_description(catalog_names: list[str]) -> str:
     """Build `find_skills`'s tool description, embedding the alphabetical catalog."""
     catalog_line = ", ".join(catalog_names) if catalog_names else "(none)"
     return (
-        "Search the lazy skill catalog. A skill matches when every "
+        "Search the catalog of skills that are not preloaded. Call this before starting "
+        "domain-specific work to find instructions for it. A skill matches when every "
         "whitespace-separated query term appears, case-insensitively, in its name "
         "or its description; an empty or missing query returns the whole catalog. "
         "Load a matching skill's full instructions with load_skill. "
@@ -79,11 +103,12 @@ def build_server(skills_dir: Path) -> MCPServer[None]:
     """
     startup_names = sorted(entry.name for entry in load_catalog(skills_dir))
 
-    server: MCPServer[None] = MCPServer("skill-server")
+    server: MCPServer[None] = MCPServer("skill-server", instructions=_SERVER_INSTRUCTIONS)
 
     @server.tool(
+        title=_FIND_SKILLS_TITLE,
         description=_find_skills_description(startup_names),
-        annotations=_READ_ONLY_ANNOTATIONS,
+        annotations=_read_only_annotations(_FIND_SKILLS_TITLE),
     )
     def find_skills(query: str | None = None) -> FindSkillsResult:
         catalog = load_catalog(skills_dir)
@@ -95,7 +120,11 @@ def build_server(skills_dir: Path) -> MCPServer[None]:
             ]
         )
 
-    @server.tool(annotations=_READ_ONLY_ANNOTATIONS)
+    @server.tool(
+        title=_LOAD_SKILL_TITLE,
+        description=_LOAD_SKILL_DESCRIPTION,
+        annotations=_read_only_annotations(_LOAD_SKILL_TITLE),
+    )
     def load_skill(name: str) -> LoadSkillResult:
         """Load one lazy skill's full SKILL.md text, directory, and file list.
 

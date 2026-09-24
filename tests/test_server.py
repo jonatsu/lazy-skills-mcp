@@ -219,7 +219,12 @@ async def test_find_skills_and_load_skill_are_declared_read_only(skills_dir: Pat
         annotations = by_name[name].annotations
         assert annotations is not None
         assert annotations.read_only_hint is True
+        assert annotations.destructive_hint is False
+        assert annotations.idempotent_hint is True
         assert annotations.open_world_hint is False
+        assert annotations.title
+        assert by_name[name].title == annotations.title
+        assert "Args:" not in (by_name[name].description or "")
 
 
 async def test_find_skills_description_is_fixed_while_the_catalog_rescans_on_each_call(
@@ -285,3 +290,11 @@ async def test_nothing_is_written_to_stdout_while_serving_tool_calls(
         await client.call_tool("load_skill", {"name": "does-not-exist"})
 
     assert captured.getvalue() == ""
+
+
+def test_server_instructions_point_agents_at_find_skills(skills_dir: Path) -> None:
+    server = build_server(skills_dir)
+
+    assert server.instructions is not None
+    assert "find_skills" in server.instructions
+    assert "load_skill" in server.instructions
