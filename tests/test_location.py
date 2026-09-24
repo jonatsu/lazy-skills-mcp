@@ -56,3 +56,20 @@ def test_an_empty_xdg_data_home_is_treated_as_absent(
     monkeypatch.setenv("HOME", "/env/home")
 
     assert resolve_skills_dir(None) == Path("/env/home/.local/share/agent-skills/lazy")
+
+
+def test_the_result_does_not_depend_on_the_current_working_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The design requires the resolved directory to never come from this
+    package's own location (`__file__`) or from where it happens to run. Changing
+    the working directory, with every input held fixed, must not change the
+    result; a `__file__`- or cwd-relative computation would fail this."""
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.setenv("HOME", "/env/home")
+    before = resolve_skills_dir(None)
+
+    monkeypatch.chdir(tmp_path)
+    after = resolve_skills_dir(None)
+
+    assert before == after == Path("/env/home/.local/share/agent-skills/lazy")
