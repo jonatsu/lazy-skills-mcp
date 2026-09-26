@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from skillserverlib.catalog import SkillsDirectoryError, load_catalog
+from lazy_skills_server.catalog import SkillsDirectoryError, load_catalog
 
 
 def test_a_valid_directory_yields_every_skill_sorted_by_name(skills_dir: Path) -> None:

@@ -6,15 +6,15 @@ import argparse
 import logging
 import sys
 
-from skillserverlib.catalog import SkillsDirectoryError
-from skillserverlib.location import resolve_skills_dir
-from skillserverlib.server import build_server
+from lazy_skills_server.catalog import SkillsDirectoryError
+from lazy_skills_server.location import resolve_skills_dir
+from lazy_skills_server.server import build_server
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        prog="skill-server",
+        prog="lazy-skills-server",
         description="Serve the lazy skill tier as MCP tools (find_skills, load_skill) over stdio.",
     )
     parser.add_argument(
@@ -22,8 +22,10 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=None,
         metavar="DIR",
         help=(
-            "Lazy skills directory (default: $XDG_DATA_HOME/agent-skills/lazy, "
-            "else ~/.local/share/agent-skills/lazy)"
+            "Lazy skills directory. Precedence: this flag, then the "
+            "LAZY_SKILLS_SERVER_SKILLS_DIR environment variable, then "
+            "$XDG_DATA_HOME/lazy-skills-server/skills, else "
+            "~/.local/share/lazy-skills-server/skills"
         ),
     )
     return parser.parse_args(argv)
@@ -52,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         server = build_server(skills_dir)
     except SkillsDirectoryError as exc:
-        print(f"skill-server: {exc}", file=sys.stderr)
+        print(f"lazy-skills-server: {exc}", file=sys.stderr)
         return 1
 
     server.run()

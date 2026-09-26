@@ -1,12 +1,12 @@
-# skill-server
+# lazy-skills-server
 
 An MCP server that serves the "lazy" tier of skills as tools instead of native, always-loaded skills. It
 implements the design in
 [`docs/plans/agent-management/lazy-skill-loading.md`](../../../docs/plans/agent-management/lazy-skill-loading.md#interfaces).
 
 ```bash
-skill-server                          # serve the default lazy skills directory over stdio
-skill-server --skills-dir /some/dir   # serve a different directory instead
+lazy-skills-server                          # serve the default lazy skills directory over stdio
+lazy-skills-server --skills-dir /some/dir   # serve a different directory instead
 ```
 
 ## What it serves
@@ -30,11 +30,12 @@ Two tools, both read-only and world-closed (`ToolAnnotations(read_only_hint=True
 
 ## Directory resolution
 
-One function decides the skills directory, in this order: an explicit `--skills-dir` argument, then
-`$XDG_DATA_HOME/agent-skills/lazy`, then `~/.local/share/agent-skills/lazy`. It never derives the path from
-this package's own location. When the resolved directory is missing, unreadable, or holds no valid skill, the
-server exits non-zero with a message naming the path it tried, so the harness reports a failed MCP server
-rather than an empty catalog.
+One function decides the skills directory, in this order: an explicit `--skills-dir` argument, then the
+`LAZY_SKILLS_SERVER_SKILLS_DIR` environment variable (when non-empty), then
+`$XDG_DATA_HOME/lazy-skills-server/skills` (when `XDG_DATA_HOME` is non-empty), then
+`~/.local/share/lazy-skills-server/skills`. It never derives the path from this package's own location. When
+the resolved directory is missing, unreadable, or holds no valid skill, the server exits non-zero with a
+message naming the path it tried, so the harness reports a failed MCP server rather than an empty catalog.
 
 ## Logging
 
