@@ -1,42 +1,127 @@
 # lazy-skills-server
 
-An MCP server that serves the "lazy" tier of skills as tools instead of native, always-loaded skills. It
-implements the design in
-[`docs/plans/agent-management/lazy-skill-loading.md`](../../../docs/plans/agent-management/lazy-skill-loading.md#interfaces).
+An MCP server that serves the "lazy" tier of skills to Codex and Copilot CLI as two tools, instead of loading
+them natively into every session. Rarely needed skill domains, such as embedded Linux and Nix, add their
+descriptions to every session, though few sessions use them. Behind this server they cost two tool
+definitions, and the agent loads a skill only when a request needs it. Claude Code gets the same domains as
+ordinary native skills, because it already defers skill loading itself.
 
 ```bash
 lazy-skills-server                          # serve the default lazy skills directory over stdio
 lazy-skills-server --skills-dir /some/dir   # serve a different directory instead
+lazy-skills-server --print-skills-dir       # print the resolved directory and exit
 ```
 
-## What it serves
+## How It Works
 
-The server scans one directory, one level deep: `<skills-dir>/<skill>/SKILL.md`, exactly how Kasetto deploys a
-lazy skill (flat, no domain nesting). It parses each `SKILL.md`'s YAML frontmatter for `name` and
-`description`, and skips — logging the reason to stderr — any skill whose frontmatter is missing or unparsable,
-or whose `name` does not match its directory name. It also excludes any file whose resolved path leaves the
-skill's own directory, so a symlink cannot serve something outside it.
+The tier is a property of a whole skill domain, never of a single skill. `skills/kasetto/base.yaml` lists only
+the eager domains, which every agent loads natively. Two Kasetto scopes list the lazy domains, and each deploys
+them to a different place:
 
-The catalog is rescanned on every tool call, not cached, so a Kasetto sync during a session is visible at the
-next call with no restart. Only the skill names embedded in `find_skills`'s tool description are fixed for the
-process's lifetime, built once at startup, because Codex does not act on `list_changed` notifications.
+- [`skills/kasetto/lazy/`](../../../skills/kasetto/lazy/kasetto.yaml) deploys them to the server's skills
+  directory, which Codex and Copilot reach only through this server.
+- [`skills/kasetto/claude-lazy/`](../../../skills/kasetto/claude-lazy/kasetto.yaml) deploys the same domains
+  into Claude's own skills directory.
 
-Two tools, both read-only and world-closed (`ToolAnnotations(read_only_hint=True, open_world_hint=False)`):
+Those two files are the authoritative list of lazy domains. `just check-lazy-domains` fails when the two scopes
+disagree or when either overlaps `base.yaml`.
 
-- `find_skills(query)` — an optional whitespace-separated term list; a skill matches when every term appears,
-  case-insensitively, in its name or its description. An empty or missing query returns every skill.
-- `load_skill(name)` — the skill's full `SKILL.md` text, its absolute directory, and the relative paths of its
-  other files. An unknown name raises a tool error naming the closest catalog names.
+```mermaid
+flowchart LR
+    base["base.yaml (eager domains)"] --> native["every agent's skills directory"]
+    lazy["lazy scope"] --> dir["~/.local/share/lazy-skills-server/skills"]
+    claudelazy["claude-lazy scope"] --> claude["Claude's skills directory"]
+    dir -->|scanned on each call| server["lazy-skills-server"]
+    server -->|stdio| agents["Codex, Copilot CLI"]
+```
 
-## Directory resolution
+The server scans its directory one level deep, as `<skills-dir>/<skill>/SKILL.md`, which is how Kasetto deploys
+a skill. It rescans on every tool call, so a Kasetto sync during a session shows up at the next call with no
+restart. Only the skill names listed in `find_skills`'s tool description are fixed at startup, because Codex
+ignores `list_changed` notifications. A new skill is therefore findable at once but named in that description
+only from the next session.
 
-One function decides the skills directory, in this order: an explicit `--skills-dir` argument, then the
-`LAZY_SKILLS_SERVER_SKILLS_DIR` environment variable (when non-empty), then
-`$XDG_DATA_HOME/lazy-skills-server/skills` (when `XDG_DATA_HOME` is non-empty), then
-`~/.local/share/lazy-skills-server/skills`. It never derives the path from this package's own location. When
-the resolved directory is missing, unreadable, or holds no valid skill, the server exits non-zero with a
-message naming the path it tried, so the harness reports a failed MCP server rather than an empty catalog.
+The server is registered directly with each agent rather than behind mcpproxy. Behind the proxy, the agent would
+first have to think of searching the proxy's `retrieve_tools` for skills, and agents do not reliably take that
+discovery step. Direct registration costs a few hundred tokens per session and keeps the catalog in plain view.
 
-## Logging
+## Tools
 
-Every diagnostic goes to stderr. Nothing but the MCP protocol reaches stdout, since stdio is the transport.
+Both tools are read-only, take no filesystem path, and resolve names only against the scanned catalog.
+
+- `find_skills(query)` returns the name and description of every skill whose name or description contains all
+  of the whitespace-separated query terms, case-insensitively. An empty or missing query returns every skill.
+- `load_skill(name)` returns the skill's full `SKILL.md` text, its absolute directory, and the relative paths of
+  its other files. The agent then reads `references/` and runs `scripts/` from that directory with its own
+  tools. An unknown name is a tool error that lists up to three close names.
+
+A skill is left out of the catalog, with the reason logged, when its frontmatter is missing or unparsable or
+its `name` differs from its directory name. A file whose resolved path leaves its skill's directory, such as an
+outward symlink, is left out of the file list.
+
+## Skills Directory
+
+One function resolves the directory, in this order: the `--skills-dir` argument, then the
+`LAZY_SKILLS_SERVER_SKILLS_DIR` environment variable, then `$XDG_DATA_HOME/lazy-skills-server/skills`, then
+`~/.local/share/lazy-skills-server/skills`. Empty variables are skipped. Because the default needs no argument,
+neither agent's committed configuration carries a machine-specific path.
+
+The `lazy` scope's `destination` must equal `lazy-skills-server --print-skills-dir`.
+`scripts/kasetto-deploy.sh` checks this before every sync of that scope and refuses to deploy on a mismatch. If
+you override the directory on a machine, change the scope's `destination` to match.
+
+When the resolved directory is missing, unreadable, or holds no valid skill, the server exits non-zero with a
+message naming the path it tried. The agent then reports a failed MCP server rather than an empty catalog. All
+diagnostics go to stderr, since stdout carries the MCP protocol.
+
+## Installation and Registration
+
+`just deploy-config` installs the server with `uv tool install --reinstall src/tools/lazy-skills-server`
+(declared in `install.conf.yaml`). That puts a non-editable copy on `PATH`, so an unsaved edit or a branch
+switch in this checkout never changes a running server.
+
+The registration is declared once, as `[servers.lazy-skills-server]` in `mcp/servers.toml`, and rendered into
+`agents/codex/config.toml` and `agents/copilot/mcp-config.json` by `just mcp-manifest render`. Never edit
+those generated entries by hand; [the manifest README](../mcp-manifest/README.md) covers the workflow.
+
+## Maintenance
+
+Run the tests, or the tests plus lint and type checks:
+
+```bash
+just test-lazy-skills-server
+just check-lazy-skills-server
+```
+
+To install a code change, run `just deploy-config`, which reinstalls the tool from the working tree. To
+reinstall the server alone, run `uv tool install --reinstall src/tools/lazy-skills-server` from the repository
+root. A running agent session
+keeps the old process, so start a new session to use the new code.
+
+To make a domain lazy, or move one back to eager, edit three places together:
+
+1. Move the domain's entry out of `skills/kasetto/base.yaml` and into both lazy scopes, or the reverse. No skill
+   file moves.
+2. Update the domain list in the "Lazy Skills" section of `agents/codex/AGENTS.md.j2` and
+   `agents/copilot/copilot-instructions.md.j2`. That sentence names the lazy domains in prose, and nothing
+   checks it.
+3. Run `just check-lazy-domains`, then `just deploy` to sync the skills and render the instructions.
+
+### An agent never calls `find_skills`
+
+Work down this list, since each step depends on the one before it:
+
+1. Confirm that the server starts. `lazy-skills-server --print-skills-dir` must name a directory that holds
+   skills, and the agent must not list the server as failed. If the directory is empty, run
+   `just deploy-skills --scope lazy`.
+2. Confirm the registration with `just check-agent-config`. It compares the live `~/.codex/config.toml` and
+   `~/.copilot/mcp-config.json` with their sources.
+3. Confirm that the instruction line reached the agent: `~/.codex/AGENTS.md` and
+   `~/.copilot/copilot-instructions.md` must contain the "Lazy Skills" section. If not, run
+   `just deploy-config`.
+4. Check the wording. The instruction line, the server's `instructions`, and both tool descriptions in
+   `src/lazy_skills_server/server.py` are all the agent sees. If the request's domain is missing from the
+   instruction line, the agent has no reason to search.
+
+The design record, including the alternatives weighed, is
+[`lazy-skill-loading.md`](../../../docs/plans/agent-management/lazy-skill-loading.md).
