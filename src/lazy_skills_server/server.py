@@ -22,15 +22,14 @@ from lazy_skills_server.catalog import SkillEntry, load_catalog, manifest_path
 _FIND_SKILLS_TITLE = "Find skills"
 _LOAD_SKILL_TITLE = "Load skill"
 _SERVER_INSTRUCTIONS = (
-    "Serves agent skills that are not preloaded. Before domain-specific work, call "
-    "find_skills to check for a matching skill, then load_skill to read its full "
-    "instructions and follow them."
+    "Skills missing from your preloaded skill list live here. When a request falls in a "
+    "domain the find_skills catalog covers, call find_skills before answering or searching "
+    "the web, then load_skill on the best match and follow its instructions."
 )
 _LOAD_SKILL_DESCRIPTION = (
-    "Load one skill's full SKILL.md instructions, the absolute path of its directory, "
-    "and the relative paths of its other files. Read reference files and run bundled "
-    "scripts from that directory. Call this after find_skills names a matching skill, "
-    "before starting the work it covers."
+    "Load a skill's full SKILL.md instructions, its directory's absolute path, and its "
+    "other files' relative paths. Call it on a name from find_skills, then follow the "
+    "instructions for the work; read references and run scripts from that directory."
 )
 _CLOSEST_MATCH_COUNT = 3
 
@@ -77,12 +76,11 @@ def _find_skills_description(catalog_names: list[str]) -> str:
     """Build `find_skills`'s tool description, embedding the alphabetical catalog."""
     catalog_line = ", ".join(catalog_names) if catalog_names else "(none)"
     return (
-        "Search the catalog of skills that are not preloaded. Call this before starting "
-        "domain-specific work to find instructions for it. A skill matches when every "
-        "whitespace-separated query term appears, case-insensitively, in its name "
-        "or its description; an empty or missing query returns the whole catalog. "
-        "Load a matching skill's full instructions with load_skill. "
-        f"Known skills: {catalog_line}."
+        f"Find skills missing from your preloaded skill list: {catalog_line}. "
+        "Call this first when a request falls in one of these skills' domains, before "
+        "answering or searching the web, then load_skill on the best match. A skill "
+        "matches when every whitespace-separated query term appears, case-insensitively, "
+        "in its name or description; an empty query returns the whole catalog."
     )
 
 
