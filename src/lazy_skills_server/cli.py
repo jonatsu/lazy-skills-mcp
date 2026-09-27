@@ -28,6 +28,14 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
             "~/.local/share/lazy-skills-server/skills"
         ),
     )
+    parser.add_argument(
+        "--print-skills-dir",
+        action="store_true",
+        help=(
+            "Print the resolved skills directory and exit, without checking that it "
+            "exists and without starting the server."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -38,19 +46,25 @@ def main(argv: list[str] | None = None) -> int:
         argv: Command line arguments, or None to read from ``sys.argv``.
 
     Returns:
-        0 after a clean shutdown. When the resolved directory cannot serve a
-        catalog, the failure is printed to stderr and 1 is returned instead of
-        starting, so the harness reports a failed MCP server rather than an empty
-        catalog.
+        0 after a clean shutdown. With ``--print-skills-dir``, 0 immediately after
+        printing the resolved directory, whether or not it exists. When the resolved
+        directory cannot serve a catalog, the failure is printed to stderr and 1 is
+        returned instead of starting, so the harness reports a failed MCP server
+        rather than an empty catalog.
     """
     args = _parse_args(argv)
+
+    skills_dir = resolve_skills_dir(args.skills_dir)
+    if args.print_skills_dir:
+        print(skills_dir)
+        return 0
+
     logging.basicConfig(
         level=logging.INFO,
         stream=sys.stderr,
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    skills_dir = resolve_skills_dir(args.skills_dir)
     try:
         server = build_server(skills_dir)
     except SkillsDirectoryError as exc:
