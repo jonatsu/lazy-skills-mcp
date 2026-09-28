@@ -1,7 +1,7 @@
 # lazy-skills-server
 
 An MCP server that serves the "lazy" tier of skills to Codex and Copilot CLI as two tools, instead of loading
-them natively into every session. Rarely needed skill domains, such as embedded Linux and Nix, add their
+them natively into every session. Specialized skills, such as embedded Linux, Nix, and Python, add their
 descriptions to every session, though few sessions use them. Behind this server they cost two tool
 definitions, and the agent loads a skill only when a request needs it. Claude Code gets the same domains as
 ordinary native skills, because it already defers skill loading itself.
@@ -14,21 +14,21 @@ lazy-skills-server --print-skills-dir       # print the resolved directory and e
 
 ## How It Works
 
-The tier is a property of a whole skill domain, never of a single skill. `skills/kasetto/base.yaml` lists only
-the eager domains, which every agent loads natively. Two Kasetto scopes list the lazy domains, and each deploys
-them to a different place:
+The tier is a directory: every lazy skill lives under `skills/shared/lazy/`, in a subdomain named after its
+direct counterpart. `skills/kasetto/base.yaml` lists only direct groups, which every agent loads natively. Two
+Kasetto scopes list the lazy groups, and each deploys them to a different place:
 
 - [`skills/kasetto/lazy/`](../../../skills/kasetto/lazy/kasetto.yaml) deploys them to the server's skills
   directory, which Codex and Copilot reach only through this server.
 - [`skills/kasetto/claude-lazy/`](../../../skills/kasetto/claude-lazy/kasetto.yaml) deploys the same domains
   into Claude's own skills directory.
 
-Those two files are the authoritative list of lazy domains. `just check-lazy-domains` fails when the two scopes
-disagree or when either overlaps `base.yaml`.
+Those two files are the authoritative list of lazy groups. `just check-lazy-domains` fails when the two scopes
+disagree, when a lazy scope declares a group outside `lazy/`, or when `base.yaml` declares one inside it.
 
 ```mermaid
 flowchart LR
-    base["base.yaml (eager domains)"] --> native["every agent's skills directory"]
+    base["base.yaml (direct groups)"] --> native["every agent's skills directory"]
     lazy["lazy scope"] --> dir["~/.local/share/lazy-skills-server/skills"]
     claudelazy["claude-lazy scope"] --> claude["Claude's skills directory"]
     dir -->|scanned on each call| server["lazy-skills-server"]
@@ -98,14 +98,16 @@ reinstall the server alone, run `uv tool install --reinstall src/tools/lazy-skil
 root. A running agent session
 keeps the old process, so start a new session to use the new code.
 
-To make a domain lazy, or move one back to eager, edit three places together:
+To move a skill into the lazy tier, or back out of it:
 
-1. Move the domain's entry out of `skills/kasetto/base.yaml` and into both lazy scopes, or the reverse. No skill
-   file moves.
-2. Update the domain list in the "Lazy Skills" section of `agents/codex/AGENTS.md.j2` and
-   `agents/copilot/copilot-instructions.md.j2`. That sentence names the lazy domains in prose, and nothing
-   checks it.
-3. Run `just check-lazy-domains`, then `just deploy` to sync the skills and render the instructions.
+1. `git mv` it between `skills/shared/<domain>/` and `skills/shared/lazy/<domain>/`.
+2. When the move creates or empties a group, add or delete that group's entry in both lazy scopes, or in
+   `skills/kasetto/base.yaml`, in the same commit.
+3. Run `just check-lazy-domains`, then commit. The post-commit hook redeploys every affected scope.
+
+The "Lazy Skills" section of `agents/codex/AGENTS.md.j2` and `agents/copilot/copilot-instructions.md.j2` names
+example subjects in prose, and nothing checks it. Update it, then run `just deploy-config`, when a whole kind of
+skill changes tier.
 
 ### An agent never calls `find_skills`
 
