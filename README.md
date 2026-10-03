@@ -90,7 +90,7 @@ Run the tests, or the tests plus lint and type checks:
 
 ```bash
 just test-lazy-skills-server
-just check-lazy-skills-server
+just check-tree lazy-skills-server
 ```
 
 To install a code change, run `just deploy-config`, which reinstalls the tool from the working tree. To
