@@ -81,7 +81,7 @@ diagnostics go to stderr, since stdout carries the MCP protocol.
 switch in this checkout never changes a running server.
 
 The registration is declared once, as `[servers.lazy-skills-server]` in `mcp/servers.toml`, and rendered into
-`agents/codex/config.toml` and `agents/copilot/mcp-config.json` by `just mcp-manifest render`. Never edit
+`agents/codex/config.toml` and `agents/copilot/mcp-config.json` by `just mcp::render`. Never edit
 those generated entries by hand; [the manifest README](../mcp-manifest/README.md) covers the workflow.
 
 ## Maintenance
