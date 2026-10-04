@@ -49,8 +49,12 @@ discovery step. Direct registration costs a few hundred tokens per session and k
 
 Both tools are read-only, take no filesystem path, and resolve names only against the scanned catalog.
 
-- `find_skills(query)` returns the name and description of every skill whose name or description contains all
-  of the whitespace-separated query terms, case-insensitively. An empty or missing query returns every skill.
+- `find_skills(query)` returns the name and description of the skills whose name or description contains any
+  of the whitespace-separated query terms, ignoring case and hyphens, best first and at most ten. Each term is
+  weighted by how rare it is across the catalog (BM25's inverse document frequency), so a word in nearly every
+  description barely counts, and a term in the skill's name counts double. An empty or missing query returns
+  every skill. The rule was all-terms until 2026-10-04, when a query spanning two skills was seen to return
+  neither.
 - `load_skill(name)` returns the skill's full `SKILL.md` text, its absolute directory, and the relative paths of
   its other files. The agent then reads `references/` and runs `scripts/` from that directory with its own
   tools. An unknown name is a tool error that lists up to three close names.

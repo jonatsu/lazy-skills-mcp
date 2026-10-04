@@ -17,7 +17,8 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from lazy_skills_server.catalog import SkillEntry, load_catalog, manifest_path
+from lazy_skills_server.catalog import load_catalog, manifest_path
+from lazy_skills_server.ranking import MAX_RESULTS, rank_entries
 
 _FIND_SKILLS_TITLE = "Find skills"
 _LOAD_SKILL_TITLE = "Load skill"
@@ -66,21 +67,16 @@ class LoadSkillResult(TypedDict):
     files: list[str]
 
 
-def _matches_every_term(entry: SkillEntry, terms: list[str]) -> bool:
-    """Whether every term appears, case-insensitively, in the entry's name or description."""
-    haystack = f"{entry.name} {entry.description}".lower()
-    return all(term in haystack for term in terms)
-
-
 def _find_skills_description(catalog_names: list[str]) -> str:
     """Build `find_skills`'s tool description, embedding the alphabetical catalog."""
     catalog_line = ", ".join(catalog_names) if catalog_names else "(none)"
     return (
         f"Find skills missing from your preloaded skill list: {catalog_line}. "
         "Call this first when a request falls in one of these skills' domains, before "
-        "answering or searching the web, then load_skill on the best match. A skill "
-        "matches when every whitespace-separated query term appears, case-insensitively, "
-        "in its name or description; an empty query returns the whole catalog."
+        "answering or searching the web, then load_skill on the best match. Results are "
+        "ranked: a skill matches when any query word appears in its name or description, "
+        f"rare words and name matches rank higher, and at most {MAX_RESULTS} return. An "
+        "empty query returns the whole catalog."
     )
 
 
@@ -109,9 +105,7 @@ def build_server(skills_dir: Path) -> MCPServer[None]:
         annotations=_read_only_annotations(_FIND_SKILLS_TITLE),
     )
     def find_skills(query: str | None = None) -> FindSkillsResult:
-        catalog = load_catalog(skills_dir)
-        terms = query.lower().split() if query else []
-        matching = [entry for entry in catalog if _matches_every_term(entry, terms)]
+        matching = rank_entries(load_catalog(skills_dir), query)
         return FindSkillsResult(
             skills=[
                 SkillSummary(name=entry.name, description=entry.description) for entry in matching

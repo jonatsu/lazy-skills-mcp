@@ -53,21 +53,20 @@ async def test_find_skills_with_an_empty_string_query_returns_the_whole_catalog(
     assert names == ["embedded-linux-bringup", "nix-flakes"]
 
 
-async def test_find_skills_requires_every_term_and_does_not_match_on_any_one_term(
+async def test_find_skills_returns_each_skill_a_multi_concept_query_touches(
     skills_dir: Path,
 ) -> None:
-    """Each term matches a different entry individually, but no entry has both.
+    """Each term matches a different skill, and both come back.
 
-    An AND-vs-OR mutation of `_matches_every_term` (`all` -> `any`) survives every
-    other existing test, because their queries always put both terms on the same
-    matching entry. This query is chosen so OR matching would wrongly return both
-    entries, while AND matching correctly returns neither.
+    This is the 2026-10-04 Copilot failure: "nix flake python packaging" spans two
+    skills, and the earlier all-terms rule returned neither.
     """
     server = build_server(skills_dir)
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("find_skills", {"query": "embedded flakes"})
 
-    assert result.structured_content["skills"] == []
+    names = sorted(entry["name"] for entry in result.structured_content["skills"])
+    assert names == ["embedded-linux-bringup", "nix-flakes"]
 
 
 async def test_find_skills_matches_case_insensitively_against_description_content(
