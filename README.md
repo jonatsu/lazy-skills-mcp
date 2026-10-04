@@ -126,4 +126,4 @@ Work down this list, since each step depends on the one before it:
    instruction line, the agent has no reason to search.
 
 The design record, including the alternatives weighed, is
-[`lazy-skill-loading.md`](../../../docs/plans/agent-management/lazy-skill-loading.md).
+[`lazy-skill-loading.md`](../../../docs/plans/archived/lazy-skill-loading.md).
