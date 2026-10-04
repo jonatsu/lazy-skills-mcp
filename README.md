@@ -57,7 +57,10 @@ Both tools are read-only, take no filesystem path, and resolve names only agains
   neither.
 - `load_skill(name)` returns the skill's full `SKILL.md` text, its absolute directory, and the relative paths of
   its other files. The agent then reads `references/` and runs `scripts/` from that directory with its own
-  tools. An unknown name is a tool error that lists up to three close names.
+  tools. An unknown name is a tool error that lists up to three close names. A large skill can exceed a
+  client's inline tool-result limit: Copilot CLI 1.0.91 saved a 29.8 KB `nix-flakes` result to a temporary file
+  and read it in ranges, which works but costs the agent extra calls
+  ([record](../../../agents/docs/copilot/evaluations/2026-10-04-copilot-test-session.md)).
 
 A skill is left out of the catalog, with the reason logged, when its frontmatter is missing or unparsable or
 its `name` differs from its directory name. A file whose resolved path leaves its skill's directory, such as an
