@@ -84,7 +84,7 @@ diagnostics go to stderr, since stdout carries the MCP protocol.
 ## Installation and Registration
 
 `just deploy-config` installs the server with `uv tool install --reinstall src/tools/lazy-skills-server`
-(declared in `install.conf.yaml`). That puts a non-editable copy on `PATH`, so an unsaved edit or a branch
+(declared in `deploy/shared.conf.yaml`). That puts a non-editable copy on `PATH`, so an unsaved edit or a branch
 switch in this checkout never changes a running server.
 
 The registration is declared once, as `[servers.lazy-skills-server]` in `mcp/servers.toml`, and rendered into
