@@ -14,21 +14,23 @@ lazy-skills-server --print-skills-dir       # print the resolved directory and e
 
 ## How It Works
 
-The tier is a directory: every lazy skill lives under `skills/shared/lazy/`, in a subdomain named after its
-direct counterpart. `skills/kasetto/base.yaml` lists only direct groups, which every agent loads natively. Two
-Kasetto scopes list the lazy groups, and each deploys them to a different place:
+The tier is a selection of skills by name, not a directory: the skills repository groups skills by subject
+only. `skills/kasetto/base.yaml` selects the direct tier, which every agent loads natively. Two Kasetto scopes
+deploy the lazy tier, each to a different place:
 
-- [`skills/kasetto/lazy/`](../../../skills/kasetto/lazy/kasetto.yaml) deploys them to the server's skills
-  directory, which Codex and Copilot reach only through this server.
-- [`skills/kasetto/claude-lazy/`](../../../skills/kasetto/claude-lazy/kasetto.yaml) deploys the same domains
-  into Claude's own skills directory.
+- [`skills/kasetto/lazy/`](../../../skills/kasetto/lazy/kasetto.yaml) selects the lazy skills and deploys
+  them to the server's skills directory, which Codex and Copilot reach only through this server.
+- [`skills/kasetto/claude-lazy/`](../../../skills/kasetto/claude-lazy/kasetto.yaml) extends that list and
+  deploys the same skills into Claude's own skills directory.
 
-Those two files are the authoritative list of lazy groups. `just check-lazy-domains` fails when the two scopes
-disagree, when a lazy scope declares a group outside `lazy/`, or when `base.yaml` declares one inside it.
+`lazy/kasetto.yaml` is the authoritative list of lazy skills. A group wholly in the tier is one `"*"` entry; a
+group split between the tiers is listed by name on both sides, because Kasetto cannot exclude a skill from a
+`"*"`. `just check-lazy-domains` fails when `base.yaml` and `lazy` select the same skill, or when `claude-lazy`
+declares a list of its own.
 
 ```mermaid
 flowchart LR
-    base["base.yaml (direct groups)"] --> native["every agent's skills directory"]
+    base["base.yaml (direct tier)"] --> native["every agent's skills directory"]
     lazy["lazy scope"] --> dir["~/.local/share/lazy-skills-server/skills"]
     claudelazy["claude-lazy scope"] --> claude["Claude's skills directory"]
     dir -->|scanned on each call| server["lazy-skills-server"]
@@ -107,10 +109,11 @@ keeps the old process, so start a new session to use the new code.
 
 To move a skill into the lazy tier, or back out of it:
 
-1. `git mv` it between `skills/shared/<domain>/` and `skills/shared/lazy/<domain>/`.
-2. When the move creates or empties a group, add or delete that group's entry in both lazy scopes, or in
-   `skills/kasetto/base.yaml`, in the same commit.
-3. Run `just check-lazy-domains`, then commit. The post-commit hook redeploys every affected scope.
+1. Move its name from `skills/kasetto/base.yaml` to `skills/kasetto/lazy/kasetto.yaml`, or back. In a group
+   split between the tiers, that is one line in each name list; a group the move empties or creates on one
+   side gains or loses its entry there, and a `"*"` on the other side becomes a name list.
+2. Run `just check-lazy-domains`, then commit.
+3. Run `just deploy-skills` and commit the rewritten locks.
 
 The "Lazy Skills" section of `agents/codex/AGENTS.md.j2` and `agents/copilot/copilot-instructions.md.j2` names
 example subjects in prose, and nothing checks it. Update it, then run `just deploy-config`, when a whole kind of
