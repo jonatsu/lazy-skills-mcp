@@ -109,3 +109,20 @@ def test_a_skip_folder_under_an_unsearchable_parent_counts_as_empty_and_is_logge
 
     assert names == frozenset()
     assert str(skip_dir) in caplog.text
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permission bits")
+def test_a_readable_but_unsearchable_skip_folder_is_logged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    native = tmp_path / "native"
+    _write_skill(native / "ast-grep")
+    native.chmod(0o644)
+    try:
+        with caplog.at_level(logging.WARNING):
+            names = installed_names([native])
+    finally:
+        native.chmod(0o755)
+
+    assert names == frozenset()
+    assert str(native) in caplog.text

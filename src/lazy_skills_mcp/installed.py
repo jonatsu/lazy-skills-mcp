@@ -13,7 +13,7 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
-from lazy_skills_mcp.skill import is_folder, manifest_path, parse_frontmatter
+from lazy_skills_mcp.skill import is_child_folder, is_folder, manifest_path, parse_frontmatter
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def installed_names(skip_dirs: Sequence[Path]) -> frozenset[str]:
             logger.warning("skip folder not found, nothing skipped from it: %s", skip_dir)
             continue
         try:
-            children = [child for child in skip_dir.iterdir() if is_folder(child)]
+            children = [child for child in skip_dir.iterdir() if is_child_folder(child)]
         except OSError as exc:
             logger.warning(
                 "skip folder unreadable, nothing skipped from it: %s (%s)", skip_dir, exc

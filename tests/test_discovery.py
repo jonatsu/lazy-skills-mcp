@@ -179,3 +179,23 @@ def test_a_shorter_path_to_a_group_cut_off_at_the_depth_limit_is_searched(tmp_pa
     (source / "z").symlink_to(group_at_limit)
 
     assert _names(source) == ["deep-skill"]
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permission bits")
+def test_a_readable_but_unsearchable_group_is_logged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Mode 0o644, as `chmod -R 644` leaves it: listing works, but no child can be checked."""
+    source = tmp_path / "source"
+    group = source / "group"
+    _write_skill(group / "skill-a")
+    _write_skill(source / "open-skill")
+    group.chmod(0o644)
+    try:
+        with caplog.at_level(logging.WARNING):
+            names = _names(source)
+    finally:
+        group.chmod(0o755)
+
+    assert names == ["open-skill"]
+    assert str(group) in caplog.text

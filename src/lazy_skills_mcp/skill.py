@@ -8,7 +8,9 @@ one bad skill must not take down the rest.
 
 from __future__ import annotations
 
+import errno
 import logging
+import stat
 from pathlib import Path
 
 import attrs
@@ -44,6 +46,23 @@ def is_folder(path: Path) -> bool:
         return path.is_dir()
     except OSError:
         return False
+
+
+def is_child_folder(path: Path) -> bool:
+    """Whether a listed child is a folder, raising when its parent cannot be searched.
+
+    A child that vanished, or a broken or looping symlink, is simply not a folder. Any
+    other error, such as a permission error from a parent that can be listed but not
+    searched, propagates so the caller's listing handler logs the parent.
+    """
+    try:
+        return stat.S_ISDIR(path.stat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            return False
+        raise
 
 
 def is_skill_folder(folder: Path) -> bool:
