@@ -1,12 +1,11 @@
 # Skill Sources Design
 
-Status: proposed, 2026-11-01; pressure-tested with the user, awaiting their confirmation. Once implemented, the code
-wins and this design is
-updated to match.\
+Status: accepted by the user, 2026-11-01, after a pressure test. Once implemented, the code
+wins and this design is updated to match.\
 Design basis: the brainstorm draft [skill-sources-draft.md](skill-sources-draft.md), whose decisions table and
 review constraints are accepted input. No spec governs the work: the draft fixes the user-visible behaviour, and this
 design realizes it. The baseline is release 0.1.1. Format: arc42, since the repository has no design convention.\
-Open items: [questions register](#questions-register).
+Open items: none; see the [questions register](#questions-register).
 
 ## 1. Introduction and Goals
 
@@ -278,7 +277,7 @@ The draft's decisions table records the user's choices and the alternatives reje
   order and the same kept skill for a duplicate name.
 - Compatibility: The 0.1.1 test suite's fixtures, a single flat source, produce the same catalog, apart from the
   behaviour changes in section 11.
-- Per-call cost (proposed, for confirmation): A `find_skills` call over a checkout of `jonatsu/agent-skills`
+- Per-call cost: A `find_skills` call over a checkout of `jonatsu/agent-skills`
   reads one `SKILL.md` per skill and no other skill file. No timing target is accepted.
 
 ## 11. Risks and Technical Debt
@@ -306,9 +305,8 @@ The draft's decisions table records the user's choices and the alternatives reje
 
 ## Questions Register
 
-| Question | Recommendation | Blocking |
-| --- | --- | --- |
-| Is the per-call cost goal in section 10 enough, or is a timing target wanted? | No timing target | No |
+No question remains open. The per-call cost goal in section 10 stands without a timing target, by the user's
+decision.
 
 ## Planning Handoff
 
