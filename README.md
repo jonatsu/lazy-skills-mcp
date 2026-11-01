@@ -175,7 +175,7 @@ The server reads skills from one or more source folders. It takes them from the 
 
 1. Every `--skills-dir` argument, in order.
 2. The `LAZY_SKILLS_MCP_SKILLS_DIR` environment variable, a list separated like `PATH` (`:` on Linux and macOS).
-3. `$XDG_DATA_HOME/lazy-skills-mcp/skills`, when `XDG_DATA_HOME` is set.
+3. `$XDG_DATA_HOME/lazy-skills-mcp/skills`, when `XDG_DATA_HOME` is set to an absolute path.
 4. `~/.local/share/lazy-skills-mcp/skills`.
 
 A level never merges with a lower one: any `--skills-dir` replaces the variable. Empty values are ignored, and a

@@ -94,3 +94,19 @@ def test_a_missing_second_source_fails_startup_naming_it(
 
     assert status == 1
     assert str(missing) in capsys.readouterr().err
+
+
+def test_without_a_home_folder_startup_fails_with_a_message_not_a_traceback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail() -> Path:
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.delenv("LAZY_SKILLS_MCP_SKILLS_DIR", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.setattr(Path, "home", staticmethod(fail))
+
+    status = main(["--print-skills-dir"])
+
+    assert status == 1
+    assert "set HOME" in capsys.readouterr().err

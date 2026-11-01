@@ -7,7 +7,7 @@ import logging
 import sys
 
 from lazy_skills_mcp.catalog import SkillsDirectoryError
-from lazy_skills_mcp.location import resolve_skill_sources
+from lazy_skills_mcp.location import HomeFolderError, resolve_skill_sources
 from lazy_skills_mcp.server import build_server
 
 
@@ -66,7 +66,11 @@ def main(argv: list[str] | None = None) -> int:
     skills_dirs: list[str] = args.skills_dir
     skip_dirs: list[str] = args.skip_installed_in
 
-    config = resolve_skill_sources(skills_dirs, skip_dirs)
+    try:
+        config = resolve_skill_sources(skills_dirs, skip_dirs)
+    except HomeFolderError as exc:
+        print(f"lazy-skills-mcp: {exc}", file=sys.stderr)
+        return 1
     if args.print_skills_dir:
         for source in config.sources:
             print(source)

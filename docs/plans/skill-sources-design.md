@@ -193,7 +193,8 @@ Sources come from the first of these that yields at least one path:
 
 1. Every non-empty `--skills-dir` value, in command-line order.
 2. `LAZY_SKILLS_MCP_SKILLS_DIR`, split on `os.pathsep`, keeping non-empty entries in order.
-3. `$XDG_DATA_HOME/lazy-skills-mcp/skills`, when `XDG_DATA_HOME` is set and non-empty.
+3. `$XDG_DATA_HOME/lazy-skills-mcp/skills`, when `XDG_DATA_HOME` is set to an absolute path; an empty or relative
+   value is ignored, as the XDG Base Directory specification asks.
 4. `~/.local/share/lazy-skills-mcp/skills`.
 
 A layer never merges with a lower one, matching 0.1.1, where `--skills-dir` overrode the variable. Skip folders come

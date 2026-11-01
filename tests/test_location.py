@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from lazy_skills_mcp.location import resolve_skill_sources
+from lazy_skills_mcp.location import HomeFolderError, resolve_skill_sources
 
 
 @pytest.fixture(autouse=True)
@@ -144,3 +144,48 @@ def test_the_result_does_not_depend_on_the_current_working_directory(
     after = _sources([])
 
     assert before == after == (Path("/env/home/.local/share/lazy-skills-mcp/skills"),)
+
+
+def test_a_relative_xdg_data_home_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The XDG Base Directory specification says to ignore a relative path."""
+    monkeypatch.setenv("XDG_DATA_HOME", "relative/data")
+
+    assert _sources([]) == (Path("/env/home/.local/share/lazy-skills-mcp/skills"),)
+
+
+def _no_home_folder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the home folder unknowable, as with no HOME and no account entry."""
+
+    def fail() -> Path:
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.delenv("HOME")
+    monkeypatch.setattr(Path, "home", staticmethod(fail))
+
+
+def test_without_a_home_folder_the_default_source_fails_with_a_clear_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _no_home_folder(monkeypatch)
+
+    with pytest.raises(HomeFolderError, match="set HOME"):
+        _sources([])
+
+
+def test_without_a_home_folder_a_tilde_path_fails_with_a_clear_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _no_home_folder(monkeypatch)
+
+    with pytest.raises(HomeFolderError):
+        _sources(["~/skills"])
+
+
+def test_absolute_paths_and_xdg_data_home_need_no_home_folder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _no_home_folder(monkeypatch)
+
+    assert _sources(["/explicit/skills"]) == (Path("/explicit/skills"),)
+    monkeypatch.setenv("XDG_DATA_HOME", "/env/xdg")
+    assert _sources([]) == (Path("/env/xdg/lazy-skills-mcp/skills"),)
