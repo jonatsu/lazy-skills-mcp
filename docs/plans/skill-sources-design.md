@@ -1,6 +1,7 @@
 # Skill Sources Design
 
-Status: proposed, 2026-11-01; not yet confirmed by the user. Once implemented, the code wins and this design is
+Status: proposed, 2026-11-01; pressure-tested with the user, awaiting their confirmation. Once implemented, the code
+wins and this design is
 updated to match.\
 Design basis: the brainstorm draft [skill-sources-draft.md](skill-sources-draft.md), whose decisions table and
 review constraints are accepted input. No spec governs the work: the draft fixes the user-visible behaviour, and this
@@ -14,7 +15,8 @@ Open items: [questions register](#questions-register).
 Release 0.1.1 serves one flat directory of skills. A deployment must copy its on-demand skills into that directory
 and keep a second list naming them. This change lets the server read the skills a user already has, from one or
 more folders in any layout a skill tool produces, and serve only the skills the agent does not load natively. The
-release is 0.2.0, a minor release, because every 0.1.1 invocation keeps its meaning.
+release is 0.2.0, a minor release: every 0.1.1 invocation keeps its meaning, apart from two behaviour changes listed in
+section 11.
 
 The accepted behaviour, from the draft's decisions table:
 
@@ -22,7 +24,7 @@ The accepted behaviour, from the draft's decisions table:
 | --- | --- |
 | Sources | `--skills-dir` may repeat; `LAZY_SKILLS_MCP_SKILLS_DIR` may hold a `PATH`-style list. With neither, today's default folder is the one source. |
 | Layout | A folder holding `SKILL.md` is a skill and is not searched further; any other folder is a group and is searched. Hidden folders are skipped. Search stops 8 levels below a source. |
-| Skipping | A repeatable skip option names folders the agent loads natively. Their skills are left out. There is no default. Skip folders are read flat. A skill counts as installed when its folder name or frontmatter `name` matches. A missing skip folder is treated as empty and logs a warning. |
+| Skipping | The repeatable `--skip-installed-in` option names folders the agent loads natively. Their skills are left out. There is no default. Skip folders are read flat. A skill counts as installed when its folder name or frontmatter `name` matches. A missing skip folder is treated as empty and logs a warning. |
 | Conflicts | The first skill found under a name wins, and a warning names both paths. |
 | Symlinks | Symlinked skill and group folders are followed; each real folder is visited once. A skill still lists no file outside its own folder. |
 | Description | `find_skills`'s description lists every served name up to 300, then counts the rest. |
@@ -30,13 +32,13 @@ The accepted behaviour, from the draft's decisions table:
 
 ### 1.2 Quality Goals
 
-1. **Predictability.** The same folders always produce the same catalog and the same warnings, independent of
+1. Predictability: The same folders always produce the same catalog and the same warnings, independent of
    filesystem listing order. A user can tell from the configuration alone which skill wins a name.
-2. **Compatibility.** An 0.1.1 registration, with one flat source and no skip folder, serves the same skills after
+2. Compatibility: An 0.1.1 registration, with one flat source and no skip folder, serves the same skills after
    the upgrade. The two deliberate exceptions are listed in section 11.
-3. **Fail visibly.** A configuration mistake shows up as a failed server or a logged warning, never as a silently
+3. Fail visibly: A configuration mistake shows up as a failed server or a logged warning, never as a silently
    different catalog.
-4. **Per-call cost stays small.** The server rescans on every tool call, so pointing it at a whole skills checkout
+4. Per-call cost stays small: The server rescans on every tool call, so pointing it at a whole skills checkout
    must not make each call slow.
 
 ### 1.3 Stakeholders
@@ -81,11 +83,11 @@ The server never writes to any folder, installs skills, or reads a skill tool's 
 
 The change separates three questions that 0.1.1 answers in one place:
 
-1. **Which folders?** Configuration resolution turns flags and environment into an ordered list of sources and a
+1. Which folders? Configuration resolution turns flags and environment into an ordered list of sources and a
    list of skip folders. It touches no files.
-2. **Which skills exist?** Discovery walks each source by the layout rule and produces candidate skills in a fixed
+2. Which skills exist? Discovery walks each source by the layout rule and produces candidate skills in a fixed
    order. A separate step reads the skip folders into a set of installed names.
-3. **Which skills are served?** Selection removes name duplicates, keeping the first, then removes installed names.
+3. Which skills are served? Selection removes name duplicates, keeping the first, then removes installed names.
    The result is the catalog both tools use.
 
 Keeping discovery and selection apart makes the order rule (quality goal 1) explicit and testable on plain data. The
@@ -112,7 +114,7 @@ flowchart TD
 | --- | --- |
 | CLI | Parses flags, sets up logging, prints sources for `--print-skills-dir`, builds the server, and turns a startup failure into exit 1 with a message. |
 | Configuration resolution | Pure function from flag values and environment to a `SkillSources` value: the ordered source paths and the skip paths. No filesystem access. Replaces `resolve_skills_dir`. |
-| Source discovery | Walks one source by the layout rule and yields candidate skills (name, description, folder) in walk order. Logs invalid skills, depth-limit hits and symlink cycles. |
+| Source discovery | Walks one source by the layout rule and yields candidate skills (name, description, folder) in walk order. Logs invalid skills, depth-limit hits and unreadable folders. |
 | Installed-name index | Reads each skip folder one level deep and returns the set of installed names. Logs missing or unreadable skip folders. |
 | Catalog builder | Runs discovery over every source in order, keeps the first candidate per name, removes installed names, and fails closed when a source is unusable or nothing remains. Called on every tool call, as `load_catalog` is today. |
 | Tool server | Builds `find_skills` and `load_skill` over the catalog builder. Owns the startup name list and its cap. Builds a skill's file list on `load_skill`. |
@@ -125,19 +127,19 @@ catalog entry no longer carries its file list; `load_skill` lists files for the 
 
 Discovery is a depth-first walk from the source folder, which is depth 0.
 
-- **Visiting a folder.** If it holds a `SKILL.md` file, it is a skill: discovery validates it and does not descend.
+- Visiting a folder: If it holds a `SKILL.md` file, it is a skill: discovery validates it and does not descend.
   This applies at depth 0 too, so a source that is itself a skill serves that one skill.
-- **A valid skill** has parsable frontmatter with string `name` and `description`, and `name` equals the folder's
+- A valid skill has parsable frontmatter with string `name` and `description`, and `name` equals the folder's
   name. Discovery yields it.
-- **An invalid skill** is logged with its reason and yields nothing. Discovery still does not descend into it.
-- **A group** is any other folder. Discovery visits its child folders in sorted name order, skipping names that
+- An invalid skill is logged with its reason and yields nothing. Discovery still does not descend into it.
+- A group is any other folder. Discovery visits its child folders in sorted name order, skipping names that
   start with `.`. A group yields no log line, whether or not it holds skills.
-- **Depth.** A folder at depth 8 is visited, so a skill there is found. A group at depth 8 is not descended; discovery
+- Depth: A folder at depth 8 is visited, so a skill there is found. A group at depth 8 is not descended; discovery
   logs one warning naming it.
-- **Symlinks.** A symlinked folder is visited like any other. Discovery keeps the set of real paths it has visited,
+- Symlinks: A symlinked folder is visited like any other. Discovery keeps the set of real paths it has visited,
   across all sources in one scan. A folder whose real path is already in the set is passed over without a log line:
   it is the same skill or group reached again, so nothing is lost, and a cycle ends.
-- **Unreadable folders.** A group or skill folder that cannot be listed or read is logged and passed over.
+- Unreadable folders: A group or skill folder that cannot be listed or read is logged and passed over.
 
 The source folder itself follows the fail-closed rule in section 8.3.
 
@@ -192,7 +194,7 @@ Sources come from the first of these that yields at least one path:
 4. `~/.local/share/lazy-skills-mcp/skills`.
 
 A layer never merges with a lower one, matching 0.1.1, where `--skills-dir` overrode the variable. Skip folders come
-only from the repeatable skip option, provisionally `--skip-installed-in DIR`, in command-line order; empty values are
+only from the repeatable option `--skip-installed-in DIR`, in command-line order; empty values are
 ignored. The server expands a leading `~` in every source and skip path, from flags and from the variable alike,
 because agents start MCP servers without a shell: Codex, for one, passes arguments through literally. It expands
 nothing else, such as `$HOME`.
@@ -232,50 +234,63 @@ returns the whole catalog, as today.
 
 ## 9. Architecture Decisions
 
-**File lists move from the scan to `load_skill`.** 0.1.1 walks every file of every skill on each call. Over a skills
+### 9.1 File lists move from the scan to `load_skill`
+
+0.1.1 walks every file of every skill on each call. Over a skills
 checkout that is the dominant cost and serves no purpose for `find_skills`. Listing one skill's files on `load_skill`
 keeps the result identical and makes the scan read one small file per skill.
 
-**A source that is itself a skill serves that skill.** The layout rule applies uniformly from depth 0, so a user can
+### 9.2 A source that is itself a skill serves that skill
+
+The layout rule applies uniformly from depth 0, so a user can
 point the server at one skill folder. The alternative, rejecting such a source, adds a special case with no benefit.
 
-**No built-in exclusion list beyond hidden folders.** Excluding names such as `node_modules` or `tests` would make
+### 9.3 No built-in exclusion list beyond hidden folders
+
+Excluding names such as `node_modules` or `tests` would make
 discovery guess at layouts and could hide a real skill named `tests`. A source should be the skills root, which the
 README says. Revisit if real checkouts prove noisy.
 
-**Same real folder reached twice is not a conflict.** Two paths to one real folder are one skill, so passing over the
+### 9.4 Same real folder reached twice is not a conflict
+
+Two paths to one real folder are one skill, so passing over the
 second without a warning loses nothing. A warning is reserved for different folders sharing a name.
 
-**The server expands a leading `~`.** 0.1.1 relied on a shell to expand it, but agents launch MCP servers directly,
+### 9.5 The server expands a leading `~`
+
+0.1.1 relied on a shell to expand it, but agents launch MCP servers directly,
 so a registration naming `~/src/agent-skills` would point at a folder literally named `~`. Expanding only a leading
 `~` covers the common case without a variable-expansion language.
 
-**The skip option has no environment variable.** Skipping is per agent and lives in each registration's arguments.
+### 9.6 The skip option has no environment variable
+
+Skipping is per agent and lives in each registration's arguments.
 A shared variable would apply one agent's native folders to every agent started from that environment.
+[BACKLOG.md](../../BACKLOG.md) keeps the variable as a later option.
 
 The draft's decisions table records the user's choices and the alternatives rejected there.
 
 ## 10. Quality Requirements
 
-- **Success signal (draft).** Given a fixture source tree and a fixture skip folder, `find_skills` with an empty query
+- Success signal (draft): Given a fixture source tree and a fixture skip folder, `find_skills` with an empty query
   returns exactly the source's valid skills minus those whose names are installed in the skip folder.
-- **Predictability.** The same fixture tree, created in two different directory-entry orders, yields the same catalog
+- Predictability: The same fixture tree, created in two different directory-entry orders, yields the same catalog
   order and the same kept skill for a duplicate name.
-- **Compatibility.** The 0.1.1 test suite's fixtures, a single flat source, produce the same catalog, apart from the
+- Compatibility: The 0.1.1 test suite's fixtures, a single flat source, produce the same catalog, apart from the
   behaviour changes in section 11.
-- **Per-call cost (proposed, for confirmation).** A `find_skills` call over a checkout of `jonatsu/agent-skills`
+- Per-call cost (proposed, for confirmation): A `find_skills` call over a checkout of `jonatsu/agent-skills`
   reads one `SKILL.md` per skill and no other skill file. No timing target is accepted.
 
 ## 11. Risks and Technical Debt
 
-1. **Two 0.1.1 behaviours change.** A symlinked skill folder whose real location lies outside the source is now served
+1. Two 0.1.1 behaviours change: A symlinked skill folder whose real location lies outside the source is now served
    instead of skipped. A folder without `SKILL.md` is now a group and searched, instead of skipped with a warning. Both
    go in the changelog. A user who relied on the first as a filter loses it.
-2. **Name-only matching hides a different skill with an installed name.** That follows the user's "when in doubt, stay
+2. Name-only matching hides a different skill with an installed name: That follows the user's "when in doubt, stay
    out" decision; the README states it.
-3. **Agents may change their native folders.** The skip option takes whatever folders a registration names, so a
+3. Agents may change their native folders: The skip option takes whatever folders a registration names, so a
    change needs only a configuration update, not a release.
-4. **A skills root holding unrelated `SKILL.md` files**, such as test fixtures, serves them. The README tells users to
+4. A skills root holding unrelated `SKILL.md` files, such as test fixtures, serves them. The README tells users to
    point at the skills root; a later exclusion option can address real cases.
 
 ## 12. Glossary
@@ -293,8 +308,6 @@ The draft's decisions table records the user's choices and the alternatives reje
 
 | Question | Recommendation | Blocking |
 | --- | --- | --- |
-| Name of the skip option | `--skip-installed-in DIR` | Yes: it enters the public contract. |
-| Should skip folders also have an environment variable? | No, see section 9 | Yes: it enters the public contract. |
 | Is the per-call cost goal in section 10 enough, or is a timing target wanted? | No timing target | No |
 
 ## Planning Handoff

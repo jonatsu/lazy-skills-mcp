@@ -19,3 +19,9 @@ on it.
   and descriptions today, so an agent that searched for a listed group would get nothing back. A skill from a flat
   source has no group and stays listed by name. Build it when a real collection outgrows the cap, so the design
   starts from that case.
+
+- **An environment variable for skip folders.** A `LAZY_SKILLS_MCP_SKIP_INSTALLED_IN` list would mirror
+  `--skip-installed-in`, as `LAZY_SKILLS_MCP_SKILLS_DIR` mirrors `--skills-dir`. 0.2.0 leaves it out because skip
+  folders differ per agent, and a variable set in a shell profile reaches every agent started from that shell. Add it
+  if a client cannot pass arguments, or if one machine-wide setting suits an agent family that all reads
+  `~/.agents/skills`.
