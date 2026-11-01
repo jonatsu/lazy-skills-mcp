@@ -126,3 +126,34 @@ def test_a_readable_but_unsearchable_skip_folder_is_logged(
 
     assert names == frozenset()
     assert str(native) in caplog.text
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permission bits")
+def test_a_skip_folder_child_with_an_unreachable_target_skips_only_that_child(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    native = tmp_path / "native"
+    _write_skill(native / "ast-grep")
+    locked = tmp_path / "locked"
+    _write_skill(locked / "behind")
+    (native / "unreachable").symlink_to(locked / "behind")
+    locked.chmod(0o000)
+    try:
+        with caplog.at_level(logging.WARNING):
+            names = installed_names([native])
+    finally:
+        locked.chmod(0o755)
+
+    assert "ast-grep" in names
+    assert "unreachable" in caplog.text
+
+
+def test_a_skip_folder_manifest_that_is_not_utf8_still_counts_by_folder_name(
+    tmp_path: Path,
+) -> None:
+    native = tmp_path / "native"
+    bad = native / "latin1-skill"
+    bad.mkdir(parents=True)
+    (bad / "SKILL.md").write_bytes(b"---\nname: other\ndescription: caf\xe9\n---\n")
+
+    assert installed_names([native]) == {"latin1-skill"}

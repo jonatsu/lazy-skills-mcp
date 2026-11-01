@@ -54,7 +54,7 @@ def _frontmatter_name(skill_dir: Path) -> str | None:
     """The `name` in `skill_dir`'s SKILL.md frontmatter, or None when it does not parse."""
     try:
         text = manifest_path(skill_dir).read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
     frontmatter = parse_frontmatter(text)
     name = frontmatter.get("name") if frontmatter is not None else None

@@ -51,18 +51,26 @@ def is_folder(path: Path) -> bool:
 def is_child_folder(path: Path) -> bool:
     """Whether a listed child is a folder, raising when its parent cannot be searched.
 
-    A child that vanished, or a broken or looping symlink, is simply not a folder. Any
-    other error, such as a permission error from a parent that can be listed but not
-    searched, propagates so the caller's listing handler logs the parent.
+    The child's own entry is checked first, and an error there, such as a permission
+    error from a parent that can be listed but not searched, propagates so the caller's
+    listing handler logs the parent. A symlinked child is then followed on its own: a
+    broken or looping link is simply not a folder, and a target that cannot be reached
+    is logged and skipped, so one bad link never hides its siblings.
     """
+    try:
+        entry_mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISLNK(entry_mode):
+        return stat.S_ISDIR(entry_mode)
     try:
         return stat.S_ISDIR(path.stat().st_mode)
     except (FileNotFoundError, NotADirectoryError):
         return False
     except OSError as exc:
-        if exc.errno == errno.ELOOP:
-            return False
-        raise
+        if exc.errno != errno.ELOOP:
+            logger.warning("skipping %s: cannot reach its target (%s)", path, exc)
+        return False
 
 
 def is_skill_folder(folder: Path) -> bool:
@@ -90,7 +98,7 @@ def read_skill(skill_dir: Path) -> SkillEntry | None:
     """
     try:
         text = manifest_path(skill_dir).read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         logger.warning("skipping %s: cannot read %s (%s)", skill_dir, SKILL_MANIFEST_NAME, exc)
         return None
 

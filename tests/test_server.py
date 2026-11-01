@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import shutil
 import sys
 from pathlib import Path
 
@@ -352,3 +353,22 @@ async def test_find_skills_description_lists_at_most_300_names(
     else:
         assert f"and {more} more" in description
         assert "skill-0300" not in description
+
+
+@pytest.mark.parametrize("tool_name", ["find_skills", "load_skill"])
+async def test_a_source_that_disappears_mid_session_is_named_in_the_tool_error(
+    tmp_path: Path, tool_name: str
+) -> None:
+    source = tmp_path / "source"
+    _write(source / "my-skill")
+    server = build_server([source])
+    shutil.rmtree(source)
+
+    async with Client(server) as client:
+        arguments = {"name": "my-skill"} if tool_name == "load_skill" else {}
+        result = await client.call_tool(tool_name, arguments)
+
+    assert result.is_error is True
+    (content,) = result.content
+    assert isinstance(content, TextContent)
+    assert str(source) in content.text

@@ -199,3 +199,23 @@ def test_a_readable_but_unsearchable_group_is_logged(
 
     assert names == ["open-skill"]
     assert str(group) in caplog.text
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permission bits")
+def test_a_child_symlink_with_an_unreachable_target_skips_only_that_child(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    source = tmp_path / "source"
+    _write_skill(source / "group" / "good-skill")
+    locked = tmp_path / "locked"
+    _write_skill(locked / "behind")
+    (source / "group" / "unreachable").symlink_to(locked / "behind")
+    locked.chmod(0o000)
+    try:
+        with caplog.at_level(logging.WARNING):
+            names = _names(source)
+    finally:
+        locked.chmod(0o755)
+
+    assert names == ["good-skill"]
+    assert "unreachable" in caplog.text

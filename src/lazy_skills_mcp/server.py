@@ -18,9 +18,9 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from lazy_skills_mcp.catalog import load_catalog
+from lazy_skills_mcp.catalog import SkillsDirectoryError, load_catalog
 from lazy_skills_mcp.ranking import MAX_RESULTS, rank_entries
-from lazy_skills_mcp.skill import list_skill_files, manifest_path
+from lazy_skills_mcp.skill import SkillEntry, list_skill_files, manifest_path
 
 _FIND_SKILLS_TITLE = "Find skills"
 _LOAD_SKILL_TITLE = "Load skill"
@@ -103,14 +103,21 @@ def build_server(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> MCP
         An `MCPServer` exposing `find_skills` and `load_skill`, ready for `run()`.
 
     Raises:
-        SkillsDirectoryError: A source is missing or unreadable, or no source holds
-            a valid skill. The catalog is scanned once here, both to build
-            `find_skills`'s fixed description and to fail the server closed before
-            it ever starts.
+        SkillsDirectoryError: A source is missing or unreadable, no source holds
+            a valid skill, or every skill is installed in a skip folder. The catalog is
+            scanned once here, both to build `find_skills`'s fixed description and to
+            fail the server closed before it ever starts.
     """
     startup_names = sorted(entry.name for entry in load_catalog(sources, skip_dirs))
 
     server: MCPServer[None] = MCPServer("lazy-skills-mcp", instructions=_SERVER_INSTRUCTIONS)
+
+    def current_catalog() -> tuple[SkillEntry, ...]:
+        """Rescan the catalog for one tool call, naming the failing path in the tool error."""
+        try:
+            return load_catalog(sources, skip_dirs)
+        except SkillsDirectoryError as exc:
+            raise ToolError(str(exc)) from exc
 
     @server.tool(
         title=_FIND_SKILLS_TITLE,
@@ -118,7 +125,7 @@ def build_server(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> MCP
         annotations=_read_only_annotations(_FIND_SKILLS_TITLE),
     )
     def find_skills(query: str | None = None) -> FindSkillsResult:
-        matching = rank_entries(load_catalog(sources, skip_dirs), query)
+        matching = rank_entries(current_catalog(), query)
         return FindSkillsResult(
             skills=[
                 SkillSummary(name=entry.name, description=entry.description) for entry in matching
@@ -144,7 +151,7 @@ def build_server(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> MCP
             ToolError: `name` matches no catalog entry; the message names the
                 closest catalog names.
         """
-        catalog = load_catalog(sources, skip_dirs)
+        catalog = current_catalog()
         by_name = {entry.name: entry for entry in catalog}
         entry = by_name.get(name)
         if entry is None:

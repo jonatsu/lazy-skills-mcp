@@ -421,3 +421,19 @@ def test_a_source_under_an_unsearchable_parent_fails_closed_naming_it(tmp_path: 
             load_catalog([source])
     finally:
         parent.chmod(0o755)
+
+
+def test_a_skill_manifest_that_is_not_utf8_is_skipped_and_logged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    root = tmp_path / "source"
+    bad = root / "latin1-skill"
+    bad.mkdir(parents=True)
+    (bad / "SKILL.md").write_bytes(b"---\nname: latin1-skill\ndescription: caf\xe9\n---\n")
+    _write_skill(root / "good-skill", "fine")
+
+    with caplog.at_level(logging.WARNING):
+        catalog = load_catalog([root])
+
+    assert [entry.name for entry in catalog] == ["good-skill"]
+    assert "latin1-skill" in caplog.text
