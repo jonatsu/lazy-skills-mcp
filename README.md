@@ -1,7 +1,7 @@
 # lazy-skills-mcp
 
-An MCP server that lets a coding agent search a directory of Agent Skills and load one
-only when a request needs it, instead of loading every skill's description into every session.
+An MCP server that lets a coding agent search your Agent Skills and load one only when a request needs it, instead
+of loading every skill's description into every session.
 
 An agent that loads skills natively pays for each skill's description in every session, even for specialized
 skills such as embedded Linux or Nix that few sessions use. Behind this server, those skills cost two tool
@@ -9,8 +9,10 @@ definitions, `find_skills` and `load_skill`, and the agent reads a skill's full 
 was built for Codex and GitHub Copilot CLI. An agent that already defers skill loading itself, such as Claude
 Code, gains nothing from it.
 
-The server only reads. It serves one directory over stdio, takes no filesystem path from the agent, and never
-writes, installs, or syncs skills; put them in the directory with whatever tool you already use.
+The server only reads. It serves the skills it finds in the folders you name, over stdio, and never writes,
+installs, or syncs skills; put them there with whatever tool you already use. Point it at a whole skills checkout,
+grouped into subfolders or flat, and tell it which folders your agent already loads natively: it serves only the
+rest.
 
 ## What the Agent Sees
 
@@ -72,7 +74,7 @@ uvx --from git+https://github.com/jonatsu/lazy-skills-mcp lazy-skills-mcp
 **Install from a checkout** with `uv tool install .` in the repository root. The tool gets its own copy, so a
 later edit or branch switch in the checkout does not change a running server.
 
-Check the install by printing the directory the server will scan:
+Check the install by printing the folders the server will read:
 
 ```bash
 lazy-skills-mcp --print-skills-dir
@@ -80,16 +82,19 @@ lazy-skills-mcp --print-skills-dir
 
 ## Register It With an Agent
 
-Put your skills in that directory, one directory per skill, then register the command with each agent.
+Put your skills in the default folder, `~/.local/share/lazy-skills-mcp/skills`, and register the bare command, or
+point the server at the folders that already hold your skills with `--skills-dir`. Add `--skip-installed-in` for each
+folder the agent loads skills from natively, so those skills are not served twice.
 
-For Codex, in `~/.codex/config.toml`:
+For Codex, which loads `~/.agents/skills` natively, in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.lazy-skills-mcp]
 command = "lazy-skills-mcp"
+args = ["--skills-dir", "~/src/agent-skills", "--skip-installed-in", "~/.agents/skills"]
 ```
 
-For Copilot CLI, in `~/.copilot/mcp-config.json`:
+For Copilot CLI, which loads `~/.copilot/skills` and `~/.agents/skills` natively, in `~/.copilot/mcp-config.json`:
 
 ```json
 {
@@ -97,11 +102,20 @@ For Copilot CLI, in `~/.copilot/mcp-config.json`:
     "lazy-skills-mcp": {
       "type": "local",
       "command": "lazy-skills-mcp",
+      "args": [
+        "--skills-dir", "~/src/agent-skills",
+        "--skip-installed-in", "~/.copilot/skills",
+        "--skip-installed-in", "~/.agents/skills"
+      ],
       "tools": ["*"]
     }
   }
 }
 ```
+
+The server expands the leading `~` itself, because agents start MCP servers without a shell. Each agent gets its own
+skip folders, which is why they are arguments rather than an environment variable. Claude Code does not need the
+server at all, since it already defers skill loading.
 
 Register the server directly rather than behind an MCP proxy. Behind a proxy, the agent must first think of
 searching the proxy for skills, and agents do not reliably take that step. Direct registration costs a few
@@ -113,18 +127,26 @@ server and tells it to call `find_skills` when a request touches one of them.
 ## Usage
 
 ```text
-usage: lazy-skills-mcp [-h] [--skills-dir DIR] [--print-skills-dir]
+usage: lazy-skills-mcp [-h] [--skills-dir DIR] [--skip-installed-in DIR]
+                       [--print-skills-dir]
 
-Serve the lazy skill tier as MCP tools (find_skills, load_skill) over stdio.
+Serve Agent Skills on demand as MCP tools (find_skills, load_skill) over
+stdio.
 
 options:
-  -h, --help          show this help message and exit
-  --skills-dir DIR    Lazy skills directory. Precedence: this flag, then the
-                      LAZY_SKILLS_MCP_SKILLS_DIR environment variable, then
-                      $XDG_DATA_HOME/lazy-skills-mcp/skills, else
-                      ~/.local/share/lazy-skills-mcp/skills
-  --print-skills-dir  Print the resolved skills directory and exit, without
-                      checking that it exists and without starting the server.
+  -h, --help            show this help message and exit
+  --skills-dir DIR      A folder to read skills from, flat or grouped. Repeat
+                        it to read several, in priority order. Default: the
+                        LAZY_SKILLS_MCP_SKILLS_DIR list, then
+                        $XDG_DATA_HOME/lazy-skills-mcp/skills, else
+                        ~/.local/share/lazy-skills-mcp/skills
+  --skip-installed-in DIR
+                        A folder the agent loads skills from natively; skills
+                        installed there are not served. Repeatable. Default:
+                        none.
+  --print-skills-dir    Print the resolved skill sources, one per line, and
+                        exit, without checking that they exist and without
+                        starting the server.
 ```
 
 ## Tools
@@ -135,7 +157,7 @@ Both tools are read-only, take no filesystem path, and resolve names only agains
   of the whitespace-separated query terms, ignoring case and hyphens, best first and at most ten. Each term is
   weighted by how rare it is across the catalog (BM25's inverse document frequency), so a word in nearly every
   description barely counts, and a term in the skill's name counts double. An empty or missing query returns
-  every skill.
+  every skill. The tool's description names up to 300 skills, then counts the rest.
 - `load_skill(name)` returns the skill's full `SKILL.md` text, its absolute directory, and the relative paths of
   its other files. The agent then reads `references/` and runs `scripts/` from that directory with its own
   tools. An unknown name is a tool error that lists up to three close names. A large skill can exceed a
@@ -143,32 +165,51 @@ Both tools are read-only, take no filesystem path, and resolve names only agains
   in ranges, which works but costs the agent extra calls.
 
 A skill is left out of the catalog, with the reason logged, when its frontmatter is missing or unparsable or
-its `name` differs from its directory name. A file whose resolved path leaves its skill's directory, such as an
-outward symlink, is left out of the file list. So is a skill directory that resolves outside the skills
-directory.
+its `name` differs from its folder name. A file whose real path leaves its skill's folder, such as an outward
+symlink, is left out of the file list.
 
-## The Skills Directory
+## Skill Sources
 
-The server resolves its directory in this order: the `--skills-dir` argument, then the
-`LAZY_SKILLS_MCP_SKILLS_DIR` environment variable, then `$XDG_DATA_HOME/lazy-skills-mcp/skills`, then
-`~/.local/share/lazy-skills-mcp/skills`. Empty variables are skipped. Because the default needs no argument, an
-agent's configuration need not carry a machine-specific path.
+The server reads skills from one or more source folders. It takes them from the first of these that names any:
 
-The server scans the directory one level deep, as `<skills-dir>/<skill>/SKILL.md`. It rescans on every tool
-call, so a skill added or changed during a session shows up at the next call with no restart. Only the skill
-names listed in `find_skills`'s tool description are fixed at startup, because Codex ignores `list_changed`
-notifications. A new skill is therefore findable at once, but named in that description only from the next
-session.
+1. Every `--skills-dir` argument, in order.
+2. The `LAZY_SKILLS_MCP_SKILLS_DIR` environment variable, a list separated like `PATH` (`:` on Linux and macOS).
+3. `$XDG_DATA_HOME/lazy-skills-mcp/skills`, when `XDG_DATA_HOME` is set.
+4. `~/.local/share/lazy-skills-mcp/skills`.
 
-When the resolved directory is missing, unreadable, or holds no valid skill, the server exits non-zero with a
-message naming the path it tried:
+A level never merges with a lower one: any `--skills-dir` replaces the variable. Empty values are ignored, and a
+leading `~` is expanded. Because the default needs no argument, an agent's configuration need not name a folder at
+all.
+
+Inside a source, the layout decides what is a skill, whatever tool installed it. A folder holding `SKILL.md` is a
+skill, and the server does not search inside it. Any other folder is a group, and the server searches its
+subfolders, up to 8 levels below the source. So a flat folder of skills and a checkout grouped as
+`development/python/<skill>/SKILL.md` both work. Hidden folders such as `.git` are skipped. Symlinked skills and
+groups are followed, as copies would be. A source that is itself a skill serves that one skill.
+
+When two skills share a name, the first one found wins: sources in the order given, then sorted paths within a
+source. The server logs a warning naming both folders. This makes the order of `--skills-dir` a priority order, so a
+personal folder listed first can override one skill from a shared checkout.
+
+Each `--skip-installed-in` folder is read flat, one skill per subfolder. A skill whose folder name or frontmatter
+`name` appears there is not served, since the agent already loads it. There is no default skip folder; a missing one
+logs a warning, because it is most likely a typo.
+
+The server rescans its sources on every tool call, so a skill added or changed during a session shows up at the next
+call with no restart. Only the skill names listed in `find_skills`'s tool description are fixed at startup, because
+Codex ignores `list_changed` notifications. A new skill is therefore findable at once, but named in that
+description only from the next session.
+
+The server refuses to start, with a message naming the paths, when a source is missing or unreadable, when no
+source holds a valid skill, or when every skill found is installed in a skip folder:
 
 ```text
-lazy-skills-mcp: lazy skills directory not found: /srv/skills
+lazy-skills-mcp: skills source not found: /srv/skills
 ```
 
-The agent then reports a failed MCP server rather than an empty catalog. All diagnostics go to stderr, since
-stdout carries the MCP protocol.
+The agent then reports a failed MCP server rather than an empty catalog. Problems with single skills or folders,
+such as an invalid `SKILL.md`, an unreadable group, or a group past the depth limit, are logged and the scan goes on.
+All diagnostics go to stderr, since stdout carries the MCP protocol.
 
 ## Interface Contract
 
@@ -176,19 +217,20 @@ Deployments pin a commit of this repository and script against the interface bel
 breaks them at their next pin bump, so treat it as a breaking change and say so in the commit message.
 
 - The console command `lazy-skills-mcp`.
-- Its `--skills-dir DIR` and `--print-skills-dir` flags, and the bare directory path that the second prints on
-  stdout.
-- The `LAZY_SKILLS_MCP_SKILLS_DIR` environment variable and the resolution order above.
-- The default directory, `$XDG_DATA_HOME/lazy-skills-mcp/skills`, else `~/.local/share/lazy-skills-mcp/skills`.
-- The `<skills-dir>/<skill>/SKILL.md` layout.
+- Its repeatable `--skills-dir DIR` and `--skip-installed-in DIR` flags, and `--print-skills-dir`, which prints the
+  resolved sources on stdout, one path per line.
+- The `LAZY_SKILLS_MCP_SKILLS_DIR` environment variable, its `PATH`-style list form, and the resolution order above.
+- The default source, `$XDG_DATA_HOME/lazy-skills-mcp/skills`, else `~/.local/share/lazy-skills-mcp/skills`.
+- The layout rule: a folder holding `SKILL.md` is a skill, any other folder is a group, up to 8 levels deep.
+- The skip rule: a skill whose folder name or frontmatter `name` appears in a skip folder is not served.
 - The tool names `find_skills` and `load_skill`.
 
 ## When an Agent Never Calls `find_skills`
 
 Work down this list, since each step depends on the one before it:
 
-1. Confirm that the server starts. `lazy-skills-mcp --print-skills-dir` must name a directory that holds
-   skills, and the agent must not list the server as failed.
+1. Confirm that the server starts. `lazy-skills-mcp --print-skills-dir`, run with the registration's arguments,
+   must name folders that hold skills, and the agent must not list the server as failed.
 2. Confirm that the agent's live configuration registers the server.
 3. Confirm that the agent's instructions name the kinds of skill behind the server.
 4. Check the wording. The instruction line, the server's `instructions`, and both tool descriptions in
@@ -200,13 +242,15 @@ Work down this list, since each step depends on the one before it:
 The repository pins Python and uv with [mise](https://mise.jdx.dev); uv alone works too.
 
 ```bash
-uv sync           # create the environment from uv.lock
-just test         # run the tests
-just check        # run every pre-commit hook: hygiene, secret scans, ruff, mypy
+uv sync                  # create the environment from uv.lock
+just test                # run the tests
+just test-all-pythons    # run them on Python 3.12, 3.13 and 3.14
+just check               # run every pre-commit hook: hygiene, secret scans, ruff, mypy
 pre-commit install
 ```
 
-A running agent session keeps its server process, so start a new session to use changed code.
+`just check` covers tracked files only, so stage a new file before relying on it. A running agent session keeps its
+server process, so start a new session to use changed code.
 
 ## License
 

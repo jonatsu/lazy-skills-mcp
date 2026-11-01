@@ -1,10 +1,10 @@
-"""The MCP tool layer: `find_skills` and `load_skill` over the lazy skill catalog.
+"""The MCP tool layer: `find_skills` and `load_skill` over the skill catalog.
 
 Both tools are read-only and world-closed, and rescan the catalog on every call
-(`load_catalog` never caches), so a Kasetto sync during a session is visible at the
-next call. Only `find_skills`'s own tool description is fixed for the server's
-lifetime, built once here from the catalog at construction time, since Codex does
-not act on `list_changed` notifications.
+(`load_catalog` never caches), so a skill added or changed during a session is
+visible at the next call. Only `find_skills`'s own tool description is fixed for the
+server's lifetime, built once here from the catalog at construction time, since Codex
+does not act on `list_changed` notifications.
 """
 
 from __future__ import annotations
@@ -131,7 +131,7 @@ def build_server(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> MCP
         annotations=_read_only_annotations(_LOAD_SKILL_TITLE),
     )
     def load_skill(name: str) -> LoadSkillResult:
-        """Load one lazy skill's full SKILL.md text, directory, and file list.
+        """Load one skill's full SKILL.md text, directory, and file list.
 
         Args:
             name: The skill's catalog name, as returned by `find_skills`.

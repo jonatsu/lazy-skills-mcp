@@ -1,1 +1,1 @@
-"""The lazy skill MCP server: catalog scanning, tool layer, and CLI entry point."""
+"""An MCP server that serves Agent Skills on demand: discovery, catalog, tools, and CLI."""
