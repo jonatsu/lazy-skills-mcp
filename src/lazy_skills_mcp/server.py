@@ -82,11 +82,13 @@ def _find_skills_description(catalog_names: list[str]) -> str:
     )
 
 
-def build_server(sources: Sequence[Path]) -> MCPServer[None]:
+def build_server(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> MCPServer[None]:
     """Build the lazy-skills-mcp `MCPServer` over `sources`.
 
     Args:
         sources: The skill sources, in priority order.
+        skip_dirs: The folders the agent loads skills from natively; their skills
+            are not served.
 
     Returns:
         An `MCPServer` exposing `find_skills` and `load_skill`, ready for `run()`.
@@ -97,7 +99,7 @@ def build_server(sources: Sequence[Path]) -> MCPServer[None]:
             `find_skills`'s fixed description and to fail the server closed before
             it ever starts.
     """
-    startup_names = sorted(entry.name for entry in load_catalog(sources))
+    startup_names = sorted(entry.name for entry in load_catalog(sources, skip_dirs))
 
     server: MCPServer[None] = MCPServer("lazy-skills-mcp", instructions=_SERVER_INSTRUCTIONS)
 
@@ -107,7 +109,7 @@ def build_server(sources: Sequence[Path]) -> MCPServer[None]:
         annotations=_read_only_annotations(_FIND_SKILLS_TITLE),
     )
     def find_skills(query: str | None = None) -> FindSkillsResult:
-        matching = rank_entries(load_catalog(sources), query)
+        matching = rank_entries(load_catalog(sources, skip_dirs), query)
         return FindSkillsResult(
             skills=[
                 SkillSummary(name=entry.name, description=entry.description) for entry in matching
@@ -133,7 +135,7 @@ def build_server(sources: Sequence[Path]) -> MCPServer[None]:
             ToolError: `name` matches no catalog entry; the message names the
                 closest catalog names.
         """
-        catalog = load_catalog(sources)
+        catalog = load_catalog(sources, skip_dirs)
         by_name = {entry.name: entry for entry in catalog}
         entry = by_name.get(name)
         if entry is None:

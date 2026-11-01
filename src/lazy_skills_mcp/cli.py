@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        server = build_server(config.sources)
+        server = build_server(config.sources, config.skip_dirs)
     except SkillsDirectoryError as exc:
         print(f"lazy-skills-mcp: {exc}", file=sys.stderr)
         return 1

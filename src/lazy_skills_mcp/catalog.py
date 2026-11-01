@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from lazy_skills_mcp.discovery import discover_skills
+from lazy_skills_mcp.installed import installed_names
 from lazy_skills_mcp.skill import SkillEntry
 
 logger = logging.getLogger(__name__)
@@ -28,26 +29,47 @@ class SkillsDirectoryError(RuntimeError):
     """
 
 
-def load_catalog(sources: Sequence[Path]) -> tuple[SkillEntry, ...]:
+def load_catalog(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> tuple[SkillEntry, ...]:
     """Scan every source, in order, into a catalog sorted by name.
 
     Candidates are ordered by source, then by each source's walk order. The first
     candidate under a name is kept; each later one is dropped with a warning naming
-    both folders.
+    both folders. Then every skill whose name is installed in a skip folder is left
+    out, since the agent already loads it natively.
 
     Args:
         sources: The skill sources, in priority order.
+        skip_dirs: The folders the agent loads skills from natively.
 
     Returns:
-        The kept skills, sorted by name.
+        The served skills, sorted by name.
 
     Raises:
         SkillsDirectoryError: A source is missing, is not a folder, or is unreadable;
-            or no source holds a valid skill. The message names the paths.
+            no source holds a valid skill; or every valid skill is installed in a
+            skip folder. The message names the paths.
     """
     for source in sources:
         _require_usable_source(source)
 
+    kept = _first_skill_per_name(sources)
+    if not kept:
+        listed = ", ".join(str(source) for source in sources)
+        raise SkillsDirectoryError(f"no valid skill found in: {listed}")
+
+    installed = installed_names(skip_dirs)
+    served = [entry for entry in kept if entry.name not in installed]
+    if not served:
+        listed = ", ".join(str(skip_dir) for skip_dir in skip_dirs)
+        raise SkillsDirectoryError(
+            f"all {len(kept)} skills found are installed in a skip folder: {listed}"
+        )
+
+    return tuple(sorted(served, key=lambda entry: entry.name))
+
+
+def _first_skill_per_name(sources: Sequence[Path]) -> list[SkillEntry]:
+    """Discover every source in order and keep the first skill under each name."""
     visited: set[Path] = set()
     kept: dict[str, SkillEntry] = {}
     for source in sources:
@@ -66,12 +88,7 @@ def load_catalog(sources: Sequence[Path]) -> tuple[SkillEntry, ...]:
                 )
         if not found_any and len(sources) > 1:
             logger.warning("skills source holds no valid skill: %s", source)
-
-    if not kept:
-        listed = ", ".join(str(source) for source in sources)
-        raise SkillsDirectoryError(f"no valid skill found in: {listed}")
-
-    return tuple(sorted(kept.values(), key=lambda entry: entry.name))
+    return list(kept.values())
 
 
 def _require_usable_source(source: Path) -> None:

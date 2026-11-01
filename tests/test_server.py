@@ -297,3 +297,30 @@ def test_server_instructions_point_agents_at_find_skills(skills_dir: Path) -> No
     assert server.instructions is not None
     assert "find_skills" in server.instructions
     assert "load_skill" in server.instructions
+
+
+def _write(skill_dir: Path) -> None:
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: {skill_dir.name}\ndescription: about {skill_dir.name}\n---\nbody\n",
+        encoding="utf-8",
+    )
+
+
+async def test_find_skills_serves_the_sources_minus_the_skills_installed_natively(
+    tmp_path: Path,
+) -> None:
+    """The draft's success signal: an empty query returns exactly the source's skills
+    minus those the agent loads natively from its skip folder."""
+    source = tmp_path / "agent-skills"
+    for relative in ["agents/ast-grep", "development/python/python-style", "embedded/u-boot"]:
+        _write(source / relative)
+    native = tmp_path / "native"
+    _write(native / "ast-grep")
+
+    server = build_server([source], [native])
+    async with Client(server, raise_exceptions=True) as client:
+        result = await client.call_tool("find_skills", {})
+
+    names = sorted(entry["name"] for entry in result.structured_content["skills"])
+    assert names == ["python-style", "u-boot"]
