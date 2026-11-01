@@ -324,3 +324,31 @@ async def test_find_skills_serves_the_sources_minus_the_skills_installed_nativel
 
     names = sorted(entry["name"] for entry in result.structured_content["skills"])
     assert names == ["python-style", "u-boot"]
+
+
+async def _find_skills_description_for(source: Path) -> str:
+    server = build_server([source])
+    async with Client(server, raise_exceptions=True) as client:
+        tools = await client.list_tools()
+    (find_skills_tool,) = [t for t in tools.tools if t.name == "find_skills"]
+    assert find_skills_tool.description is not None
+    return find_skills_tool.description
+
+
+@pytest.mark.parametrize(("count", "listed", "more"), [(300, 300, None), (301, 300, 1)])
+async def test_find_skills_description_lists_at_most_300_names(
+    tmp_path: Path, count: int, listed: int, more: int | None
+) -> None:
+    source = tmp_path / "many"
+    for index in range(count):
+        _write(source / f"skill-{index:04d}")
+
+    description = await _find_skills_description_for(source)
+
+    assert description.count("skill-") == listed
+    assert "skill-0000" in description
+    if more is None:
+        assert "more" not in description
+    else:
+        assert f"and {more} more" in description
+        assert "skill-0300" not in description

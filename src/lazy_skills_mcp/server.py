@@ -35,6 +35,7 @@ _LOAD_SKILL_DESCRIPTION = (
     "instructions for the work; read references and run scripts from that directory."
 )
 _CLOSEST_MATCH_COUNT = 3
+MAX_DESCRIBED_NAMES = 300
 
 
 def _read_only_annotations(title: str) -> ToolAnnotations:
@@ -70,8 +71,16 @@ class LoadSkillResult(TypedDict):
 
 
 def _find_skills_description(catalog_names: list[str]) -> str:
-    """Build `find_skills`'s tool description, embedding the alphabetical catalog."""
-    catalog_line = ", ".join(catalog_names) if catalog_names else "(none)"
+    """Build `find_skills`'s tool description, embedding the alphabetical catalog.
+
+    At most `MAX_DESCRIBED_NAMES` names are listed, so a very large catalog cannot
+    inflate every session's context without bound; the rest are counted.
+    """
+    listed = catalog_names[:MAX_DESCRIBED_NAMES]
+    catalog_line = ", ".join(listed) if listed else "(none)"
+    unlisted = len(catalog_names) - len(listed)
+    if unlisted:
+        catalog_line += f", and {unlisted} more; call find_skills to search them"
     return (
         f"Find skills missing from your preloaded skill list: {catalog_line}. "
         "Call this first when a request falls in one of these skills' domains, before "
