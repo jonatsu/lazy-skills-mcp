@@ -1,0 +1,52 @@
+# `pre-commit install` wires the pre-commit checks only; this repository runs no other Git hook.
+default_install_hook_types: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: check-toml
+      - id: check-yaml
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+  # Betterleaks scans the staged diff only; scan the whole history with `betterleaks git .`.
+  - repo: https://github.com/betterleaks/betterleaks
+    rev: v1.8.1
+    hooks:
+      - id: betterleaks
+  # Secretlint catches what Betterleaks does not look for: home directory paths, `.env` files, and email
+  # addresses outside the noreply and reserved example domains. Rules live in .secretlintrc.json. Keep every
+  # package on one version and bump them together by hand, because `pre-commit autoupdate` does not.
+  - repo: local
+    hooks:
+      - id: secretlint
+        name: secretlint
+        language: node
+        entry: secretlint --no-glob
+        additional_dependencies:
+          - secretlint@13.0.7
+          - "@secretlint/secretlint-rule-no-homedir@13.0.7"
+          - "@secretlint/secretlint-rule-no-dotenv@13.0.7"
+          - "@secretlint/secretlint-rule-pattern@13.0.7"
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.0
+    hooks:
+      - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+      - id: ruff-format
+  # mypy runs from the locked environment, so it sees the MCP SDK and the package's own imports. It checks
+  # the package and the tests in one run (`files` in pyproject.toml), because a single staged test file
+  # cannot resolve lazy_skills_mcp on its own.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        language: system
+        entry: uv run --locked mypy
+        types: [python]
+        pass_filenames: false

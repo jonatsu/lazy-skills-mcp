@@ -1,0 +1,8 @@
+# uv-managed virtualenv, recreated from the committed uv.lock.
+/.venv/
+
+# Python tool caches.
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
