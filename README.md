@@ -1,7 +1,7 @@
 # lazy-skills-mcp
 
-An MCP server that lets a coding agent search your Agent Skills and load one only when a request needs it, instead
-of loading every skill's description into every session.
+An MCP server that lets a coding agent search your [Agent Skills](https://agentskills.io/specification) and load
+one only when a request needs it, instead of loading every skill's description into every session.
 
 An agent that loads skills natively pays for each skill's description in every session, even for specialized
 skills such as embedded Linux or Nix that few sessions use. Behind this server, those skills cost two tool
@@ -43,42 +43,84 @@ files, which it reads with its own tools:
 }
 ```
 
+## Quick Start
+
+This walk-through installs the server, gives it one skill, and registers it with Codex. It needs
+[uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+1. Install the latest release, which puts `lazy-skills-mcp` on `PATH`:
+
+   ```bash
+   uv tool install git+https://github.com/jonatsu/lazy-skills-mcp@v0.2.0
+   ```
+
+2. Create a skill in the default skills folder:
+
+   ```bash
+   mkdir -p ~/.local/share/lazy-skills-mcp/skills/hello-skill
+   cat > ~/.local/share/lazy-skills-mcp/skills/hello-skill/SKILL.md <<'EOF'
+   ---
+   name: hello-skill
+   description: Say hello. Use when asked to test that lazy-skills-mcp serves skills.
+   ---
+
+   # Hello
+
+   Reply with a friendly greeting that names lazy-skills-mcp.
+   EOF
+   ```
+
+3. Register the server in `~/.codex/config.toml`:
+
+   ```toml
+   [mcp_servers.lazy-skills-mcp]
+   command = "lazy-skills-mcp"
+   ```
+
+4. Tell the agent when to search, with a line in `~/.codex/AGENTS.md`:
+
+   ```markdown
+   Some skills are not preloaded: the lazy-skills-mcp server holds them. When a request touches testing
+   lazy-skills-mcp, call its find_skills tool first, then load the best match with load_skill.
+   ```
+
+5. Start a new Codex session and ask it to test that lazy-skills-mcp serves skills. It calls `find_skills` and
+   `load_skill`, then replies with the greeting.
+
+Then point the server at your real skills, as [Register It With an Agent](#register-it-with-an-agent) shows, and
+name their topics in the instruction line instead.
+
 ## Install
 
 The server needs Python 3.12 or newer. uv downloads a suitable Python when none is installed; pipx needs one installed.
+Releases are tags of this repository; see the [changelog](CHANGELOG.md) for what each one changes.
 
-**Install from the repository with uv**, which puts `lazy-skills-mcp` on `PATH`:
-
-```bash
-uv tool install git+https://github.com/jonatsu/lazy-skills-mcp
-```
-
-**Pin a commit** when you want an install that only changes when you change it:
+**Install a release with uv**, as the quick start does:
 
 ```bash
-uv tool install --reinstall git+https://github.com/jonatsu/lazy-skills-mcp@<commit>
+uv tool install git+https://github.com/jonatsu/lazy-skills-mcp@v0.2.0
 ```
+
+**Install the latest commit on `main`** by leaving out the tag. Pin a commit with `@<commit>` and `--reinstall`
+when you want an install that changes only when you change it.
 
 **Install with pipx** instead:
 
 ```bash
-pipx install git+https://github.com/jonatsu/lazy-skills-mcp
+pipx install git+https://github.com/jonatsu/lazy-skills-mcp@v0.2.0
 ```
 
 **Run it without installing**, with uvx, by registering this as the agent's server command:
 
 ```bash
-uvx --from git+https://github.com/jonatsu/lazy-skills-mcp lazy-skills-mcp
+uvx --from git+https://github.com/jonatsu/lazy-skills-mcp@v0.2.0 lazy-skills-mcp
 ```
 
 **Install from a checkout** with `uv tool install .` in the repository root. The tool gets its own copy, so a
 later edit or branch switch in the checkout does not change a running server.
 
-Check the install by printing the folders the server will read:
-
-```bash
-lazy-skills-mcp --print-skills-dir
-```
+Check the install with `lazy-skills-mcp --version`, and print the folders the server will read with
+`lazy-skills-mcp --print-skills-dir`.
 
 ## Register It With an Agent
 
@@ -123,13 +165,18 @@ searching the proxy for skills, and agents do not reliably take that step. Direc
 hundred tokens per session and keeps the catalog in plain view.
 
 An agent also needs a reason to search. Add a line to its instructions that names the kinds of skill behind the
-server and tells it to call `find_skills` when a request touches one of them.
+server and tells it to call `find_skills` when a request touches one of them, for example:
+
+```markdown
+Skills for embedded Linux, Nix, and Yocto are not preloaded: the lazy-skills-mcp server holds them. Before working
+on one of those topics, call its find_skills tool, then load the best match with load_skill.
+```
 
 ## Usage
 
 ```text
 usage: lazy-skills-mcp [-h] [--skills-dir DIR] [--skip-installed-in DIR]
-                       [--print-skills-dir]
+                       [--version] [--print-skills-dir]
 
 Serve Agent Skills on demand as MCP tools (find_skills, load_skill) over
 stdio.
@@ -145,6 +192,7 @@ options:
                         A folder the agent loads skills from natively; skills
                         installed there are not served. Repeatable. Default:
                         none.
+  --version             show program's version number and exit
   --print-skills-dir    Print the resolved skill sources, one per line, and
                         exit, without checking that they exist and without
                         starting the server.
@@ -234,32 +282,61 @@ breaks them at their next pin bump, so treat it as a breaking change and say so 
 - The tool names `find_skills` and `load_skill`, their arguments `query` and `name`, and their result fields:
   `skills` with each skill's `name` and `description`, and `content`, `directory` and `files`.
 
-## When an Agent Never Calls `find_skills`
+## Troubleshooting
+
+### Check That the Server Starts
+
+Run the command from the agent's registration in a terminal, with the same arguments. A server that cannot serve
+any skill prints the reason and exits with status 1. A healthy server prints its warnings, if any, and then waits
+silently for MCP messages on stdin; end it with Ctrl-D.
+
+To see a real answer, send it a handshake and a `find_skills` call. The last line printed is the result, listing
+the skills it serves:
+
+```bash
+{
+  printf '%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"check","version":"0"}}}' \
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_skills","arguments":{}}}'
+  sleep 2
+} | lazy-skills-mcp --skills-dir ~/src/agent-skills
+```
+
+The `sleep` keeps stdin open long enough for the reply; the server stops when its input ends.
+
+### Symptoms
+
+- **`lazy-skills-mcp: command not found`, or the agent cannot start the command.** uv's tool folder is not on
+  `PATH`. Run `uv tool update-shell`, or register the absolute path that `uv tool dir --bin` names.
+- **The agent lists the server as failed.** Run the startup check above. The message names the source that is
+  missing or unreadable, says that no source holds a valid skill, or says that every skill is installed in a skip
+  folder.
+- **A skill is missing from `find_skills`.** The server logs a warning naming each skill it leaves out and why: a
+  missing or invalid frontmatter field, a `name` that differs from its folder, a duplicate name, or a group past
+  the depth limit. Run the server by hand to see them, or read the agent's MCP log. Then check the skip folders: a
+  skill whose name is installed there is not served, by design.
+- **A new skill is findable but not named in the tool description.** The description is fixed when the server
+  starts. Start a new agent session.
+- **Python reports a missing or wrong version.** The server needs Python 3.12 or newer. With uv, add
+  `--python 3.12` to `uv tool install`.
+
+### When an Agent Never Calls `find_skills`
 
 Work down this list, since each step depends on the one before it:
 
-1. Confirm that the server starts. `lazy-skills-mcp --print-skills-dir`, run with the registration's arguments,
-   must name folders that hold skills, and the agent must not list the server as failed.
+1. Confirm that the server starts, as above, and that the agent does not list it as failed.
 2. Confirm that the agent's live configuration registers the server.
 3. Confirm that the agent's instructions name the kinds of skill behind the server.
 4. Check the wording. The instruction line, the server's `instructions`, and both tool descriptions in
    `src/lazy_skills_mcp/server.py` are all the agent sees. If the request's domain is missing from the
    instruction line, the agent has no reason to search.
 
-## Development
+## Contributing
 
-The repository pins Python and uv with [mise](https://mise.jdx.dev); uv alone works too.
-
-```bash
-uv sync                  # create the environment from uv.lock
-just test                # run the tests
-just test-all-pythons    # run them on Python 3.12, 3.13 and 3.14
-just check               # run every pre-commit hook: hygiene, secret scans, ruff, mypy
-pre-commit install
-```
-
-`just check` covers tracked files only, so stage a new file before relying on it. A running agent session keeps its
-server process, so start a new session to use changed code.
+[CONTRIBUTING.md](CONTRIBUTING.md) covers setting up a checkout, the checks, and the conventions.
+[docs/releasing.md](docs/releasing.md) covers cutting a release. Planned work is in [ROADMAP.md](ROADMAP.md), and
+deferred ideas with their reasoning are in [BACKLOG.md](BACKLOG.md).
 
 ## License
 
