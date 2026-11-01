@@ -115,7 +115,8 @@ For Copilot CLI, which loads `~/.copilot/skills` and `~/.agents/skills` natively
 
 The server expands the leading `~` itself, because agents start MCP servers without a shell. Each agent gets its own
 skip folders, which is why they are arguments rather than an environment variable. Claude Code does not need the
-server at all, since it already defers skill loading.
+server at all, since it already defers skill loading. If your setup installs Codex skills into `~/.codex/skills`, add
+that folder as a skip folder too.
 
 Register the server directly rather than behind an MCP proxy. Behind a proxy, the agent must first think of
 searching the proxy for skills, and agents do not reliably take that step. Direct registration costs a few
@@ -185,14 +186,17 @@ Inside a source, the layout decides what is a skill, whatever tool installed it.
 skill, and the server does not search inside it. Any other folder is a group, and the server searches its
 subfolders, up to 8 levels below the source. So a flat folder of skills and a checkout grouped as
 `development/python/<skill>/SKILL.md` both work. Hidden folders such as `.git` are skipped. Symlinked skills and
-groups are followed, as copies would be. A source that is itself a skill serves that one skill.
+groups are followed, as copies would be. A source that is itself a skill serves that one skill. Point a source at the
+folder that holds your skills rather than at a whole project: every valid `SKILL.md` under it is served, test
+fixtures and examples included.
 
 When two skills share a name, the first one found wins: sources in the order given, then sorted paths within a
 source. The server logs a warning naming both folders. This makes the order of `--skills-dir` a priority order, so a
 personal folder listed first can override one skill from a shared checkout.
 
 Each `--skip-installed-in` folder is read flat, one skill per subfolder. A skill whose folder name or frontmatter
-`name` appears there is not served, since the agent already loads it. There is no default skip folder; a missing one
+`name` appears there is not served, since the agent already loads it. Matching is by name only, so a different skill
+that happens to share an installed name is left out too. There is no default skip folder; a missing one
 logs a warning, because it is most likely a typo.
 
 The server rescans its sources on every tool call, so a skill added or changed during a session shows up at the next

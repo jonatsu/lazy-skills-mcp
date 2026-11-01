@@ -30,6 +30,9 @@
 
 - The PyYAML minimum is now 6.0.1. PyYAML 6.0 has no Python 3.12 wheels and fails to build from source, so the
   declared minimum could not install on any supported Python.
+- A `SKILL.md` that is not valid UTF-8 is skipped and logged instead of failing the whole scan.
+- When a source disappears during a session, the tool error names it instead of a generic failure.
+
 ## 0.1.1
 
 ### Changed
