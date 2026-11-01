@@ -1,4 +1,4 @@
-# lazy-skills-server
+# lazy-skills-mcp
 
 An MCP server that serves the "lazy" tier of skills to Codex and Copilot CLI as two tools, instead of loading
 them natively into every session. Specialized skills, such as embedded Linux, Nix, and Python, add their
@@ -7,9 +7,9 @@ definitions, and the agent loads a skill only when a request needs it. Claude Co
 ordinary native skills, because it already defers skill loading itself.
 
 ```bash
-lazy-skills-server                          # serve the default lazy skills directory over stdio
-lazy-skills-server --skills-dir /some/dir   # serve a different directory instead
-lazy-skills-server --print-skills-dir       # print the resolved directory and exit
+lazy-skills-mcp                          # serve the default lazy skills directory over stdio
+lazy-skills-mcp --skills-dir /some/dir   # serve a different directory instead
+lazy-skills-mcp --print-skills-dir       # print the resolved directory and exit
 ```
 
 ## How It Works
@@ -31,9 +31,9 @@ declares a list of its own.
 ```mermaid
 flowchart LR
     base["base.yaml (direct tier)"] --> native["every agent's skills directory"]
-    lazy["lazy scope"] --> dir["~/.local/share/lazy-skills-server/skills"]
+    lazy["lazy scope"] --> dir["~/.local/share/lazy-skills-mcp/skills"]
     claudelazy["claude-lazy scope"] --> claude["Claude's skills directory"]
-    dir -->|scanned on each call| server["lazy-skills-server"]
+    dir -->|scanned on each call| server["lazy-skills-mcp"]
     server -->|stdio| agents["Codex, Copilot CLI"]
 ```
 
@@ -71,11 +71,11 @@ outward symlink, is left out of the file list.
 ## Skills Directory
 
 One function resolves the directory, in this order: the `--skills-dir` argument, then the
-`LAZY_SKILLS_SERVER_SKILLS_DIR` environment variable, then `$XDG_DATA_HOME/lazy-skills-server/skills`, then
-`~/.local/share/lazy-skills-server/skills`. Empty variables are skipped. Because the default needs no argument,
+`LAZY_SKILLS_MCP_SKILLS_DIR` environment variable, then `$XDG_DATA_HOME/lazy-skills-mcp/skills`, then
+`~/.local/share/lazy-skills-mcp/skills`. Empty variables are skipped. Because the default needs no argument,
 neither agent's committed configuration carries a machine-specific path.
 
-The `lazy` scope's `destination` must equal `lazy-skills-server --print-skills-dir`.
+The `lazy` scope's `destination` must equal `lazy-skills-mcp --print-skills-dir`.
 `scripts/kasetto-deploy.sh` checks this before every sync of that scope and refuses to deploy on a mismatch. If
 you override the directory on a machine, change the scope's `destination` to match.
 
@@ -85,11 +85,11 @@ diagnostics go to stderr, since stdout carries the MCP protocol.
 
 ## Installation and Registration
 
-`just deploy-config` installs the server with `uv tool install --reinstall src/tools/lazy-skills-server`
+`just deploy-config` installs the server with `uv tool install --reinstall src/tools/lazy-skills-mcp`
 (declared in `deploy/shared.conf.yaml`). That puts a non-editable copy on `PATH`, so an unsaved edit or a branch
 switch in this checkout never changes a running server.
 
-The registration is declared once, as `[servers.lazy-skills-server]` in `mcp/servers.toml`, and rendered into
+The registration is declared once, as `[servers.lazy-skills-mcp]` in `mcp/servers.toml`, and rendered into
 `agents/codex/config.toml` and `agents/copilot/mcp-config.json` by `just mcp::render`. Never edit
 those generated entries by hand; [the manifest README](../mcp-manifest/README.md) covers the workflow.
 
@@ -98,12 +98,12 @@ those generated entries by hand; [the manifest README](../mcp-manifest/README.md
 Run the tests, or the tests plus lint and type checks:
 
 ```bash
-just test-lazy-skills-server
-just check-tree lazy-skills-server
+just test-lazy-skills-mcp
+just check-tree lazy-skills-mcp
 ```
 
 To install a code change, run `just deploy-config`, which reinstalls the tool from the working tree. To
-reinstall the server alone, run `uv tool install --reinstall src/tools/lazy-skills-server` from the repository
+reinstall the server alone, run `uv tool install --reinstall src/tools/lazy-skills-mcp` from the repository
 root. A running agent session
 keeps the old process, so start a new session to use the new code.
 
@@ -123,7 +123,7 @@ skill changes tier.
 
 Work down this list, since each step depends on the one before it:
 
-1. Confirm that the server starts. `lazy-skills-server --print-skills-dir` must name a directory that holds
+1. Confirm that the server starts. `lazy-skills-mcp --print-skills-dir` must name a directory that holds
    skills, and the agent must not list the server as failed. If the directory is empty, run
    `just deploy-skills --scope lazy`.
 2. Confirm the registration with `just check-agent-config`. It compares the live `~/.codex/config.toml` and
@@ -132,7 +132,7 @@ Work down this list, since each step depends on the one before it:
    `~/.copilot/copilot-instructions.md` must contain the "Lazy Skills" section. If not, run
    `just deploy-config`.
 4. Check the wording. The instruction line, the server's `instructions`, and both tool descriptions in
-   `src/lazy_skills_server/server.py` are all the agent sees. If the request's domain is missing from the
+   `src/lazy_skills_mcp/server.py` are all the agent sees. If the request's domain is missing from the
    instruction line, the agent has no reason to search.
 
 The design record, including the alternatives weighed, is

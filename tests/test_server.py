@@ -10,7 +10,7 @@ import pytest
 from mcp import Client
 from mcp.types import TextContent
 
-from lazy_skills_server.server import build_server
+from lazy_skills_mcp.server import build_server
 
 pytestmark = pytest.mark.anyio
 
@@ -268,7 +268,7 @@ async def test_find_skills_description_is_fixed_while_the_catalog_rescans_on_eac
 async def test_building_the_server_with_a_missing_directory_fails_closed(
     tmp_path: Path,
 ) -> None:
-    from lazy_skills_server.catalog import SkillsDirectoryError
+    from lazy_skills_mcp.catalog import SkillsDirectoryError
 
     missing = tmp_path / "does-not-exist"
     with pytest.raises(SkillsDirectoryError, match=str(missing)):

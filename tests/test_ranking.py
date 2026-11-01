@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from lazy_skills_server.catalog import SkillEntry
-from lazy_skills_server.ranking import MAX_RESULTS, query_terms, rank_entries
+from lazy_skills_mcp.catalog import SkillEntry
+from lazy_skills_mcp.ranking import MAX_RESULTS, query_terms, rank_entries
 
 
 def _entry(name: str, description: str) -> SkillEntry:

@@ -17,8 +17,8 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from lazy_skills_server.catalog import load_catalog, manifest_path
-from lazy_skills_server.ranking import MAX_RESULTS, rank_entries
+from lazy_skills_mcp.catalog import load_catalog, manifest_path
+from lazy_skills_mcp.ranking import MAX_RESULTS, rank_entries
 
 _FIND_SKILLS_TITLE = "Find skills"
 _LOAD_SKILL_TITLE = "Load skill"
@@ -81,7 +81,7 @@ def _find_skills_description(catalog_names: list[str]) -> str:
 
 
 def build_server(skills_dir: Path) -> MCPServer[None]:
-    """Build the lazy-skills-server `MCPServer` over `skills_dir`.
+    """Build the lazy-skills-mcp `MCPServer` over `skills_dir`.
 
     Args:
         skills_dir: The resolved lazy skills directory.
@@ -97,7 +97,7 @@ def build_server(skills_dir: Path) -> MCPServer[None]:
     """
     startup_names = sorted(entry.name for entry in load_catalog(skills_dir))
 
-    server: MCPServer[None] = MCPServer("lazy-skills-server", instructions=_SERVER_INSTRUCTIONS)
+    server: MCPServer[None] = MCPServer("lazy-skills-mcp", instructions=_SERVER_INSTRUCTIONS)
 
     @server.tool(
         title=_FIND_SKILLS_TITLE,
