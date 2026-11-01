@@ -38,7 +38,9 @@ def installed_names(skip_dirs: Sequence[Path]) -> frozenset[str]:
         try:
             children = [child for child in skip_dir.iterdir() if child.is_dir()]
         except OSError as exc:
-            logger.warning("skip folder unreadable, nothing skipped from it: %s (%s)", skip_dir, exc)
+            logger.warning(
+                "skip folder unreadable, nothing skipped from it: %s (%s)", skip_dir, exc
+            )
             continue
         for child in children:
             names.add(child.name)
