@@ -1,8 +1,10 @@
-"""Folder checks for walking skill trees, each with a stated way of handling errors.
+"""Folder checks for the discovery walk and the skip folders, each with its own error policy.
 
 `Path.is_dir` raises on Python 3.12 and 3.13 when a parent folder cannot be searched,
-and a symlink can point anywhere, so the walks never call it directly. Each check here
-names what it does with an error, so a caller picks one by the failure it must report.
+and a symlink can point anywhere. `is_reachable_folder` treats any error as "no", for a
+skip folder that only needs a warning. `is_listed_child_folder` lets a parent's error
+reach the caller's listing handler and handles a bad symlink itself, for walking a
+folder's children.
 """
 
 from __future__ import annotations

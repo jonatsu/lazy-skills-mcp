@@ -148,8 +148,9 @@ def build_server(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> MCP
             relative paths of its other files.
 
         Raises:
-            ToolError: `name` matches no catalog entry; the message names the
-                closest catalog names.
+            ToolError: The catalog cannot be scanned, `name` matches no catalog
+                entry, or the skill cannot be read. An unknown name's message
+                names the closest catalog names, when there are any.
         """
         catalog = current_catalog()
         by_name = {entry.name: entry for entry in catalog}

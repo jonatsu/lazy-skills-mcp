@@ -227,3 +227,11 @@ def test_a_source_under_an_unsearchable_parent_fails_closed_naming_it(tmp_path: 
             load_catalog([source])
     finally:
         parent.chmod(0o755)
+
+
+def test_a_source_that_is_a_file_is_named_as_not_a_folder(tmp_path: Path) -> None:
+    source = tmp_path / "skills.txt"
+    source.write_text("not a folder", encoding="utf-8")
+
+    with pytest.raises(SkillsDirectoryError, match="is not a folder"):
+        load_catalog([source])

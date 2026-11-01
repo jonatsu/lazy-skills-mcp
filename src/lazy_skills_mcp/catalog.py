@@ -98,7 +98,8 @@ def _require_usable_source(source: Path) -> None:
     """Raise unless `source` is a folder the server can list."""
     try:
         if not source.is_dir():
-            raise SkillsDirectoryError(f"skills source not found: {source}")
+            problem = "is not a folder" if source.exists() else "not found"
+            raise SkillsDirectoryError(f"skills source {problem}: {source}")
         _ = next(source.iterdir(), None)
     except OSError as exc:
         raise SkillsDirectoryError(f"skills source unreadable: {source} ({exc})") from exc

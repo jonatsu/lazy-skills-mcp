@@ -30,7 +30,7 @@ class SkillEntry:
 
 
 def manifest_path(skill_dir: Path) -> Path:
-    """The `SKILL.md` path for a skill folder, named once so it is not repeated."""
+    """The `SKILL.md` path for a skill folder."""
     return skill_dir / SKILL_MANIFEST_NAME
 
 
@@ -70,7 +70,9 @@ def read_skill(skill_dir: Path) -> SkillEntry | None:
     name = frontmatter.get("name")
     description = frontmatter.get("description")
     if not isinstance(name, str) or not isinstance(description, str):
-        logger.warning("skipping %s: frontmatter missing 'name' or 'description'", skill_dir)
+        field, value = ("name", name) if not isinstance(name, str) else ("description", description)
+        problem = "has no" if value is None else "has a non-string"
+        logger.warning("skipping %s: frontmatter %s %r", skill_dir, problem, field)
         return None
 
     if name != skill_dir.name:

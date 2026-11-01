@@ -128,3 +128,22 @@ def test_a_symlinked_skill_folder_lists_the_files_of_its_real_folder(tmp_path: P
     linked.symlink_to(store)
 
     assert list_skill_files(linked) == ("notes.md",)
+
+
+@pytest.mark.parametrize(
+    ("manifest", "reason"),
+    [
+        ("---\nname: my-skill\n---\nbody\n", "has no 'description'"),
+        ("---\nname: my-skill\ndescription: 123\n---\nbody\n", "has a non-string 'description'"),
+        ("---\nname: [a, b]\ndescription: fine\n---\nbody\n", "has a non-string 'name'"),
+    ],
+)
+def test_the_logged_reason_names_the_field_and_its_problem(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, manifest: str, reason: str
+) -> None:
+    skill_dir = _write_manifest(tmp_path / "my-skill", manifest)
+
+    with caplog.at_level(logging.WARNING):
+        assert read_skill(skill_dir) is None
+
+    assert reason in caplog.text

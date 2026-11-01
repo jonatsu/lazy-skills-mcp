@@ -40,7 +40,7 @@ async def test_find_skills_with_no_query_returns_the_whole_catalog(skills_dir: P
     assert names == ["embedded-linux-bringup", "nix-flakes"]
 
 
-async def test_find_skills_matches_every_term_case_insensitively(skills_dir: Path) -> None:
+async def test_find_skills_matches_uppercase_query_terms(skills_dir: Path) -> None:
     server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("find_skills", {"query": "EMBEDDED board"})
