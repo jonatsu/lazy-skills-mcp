@@ -1,7 +1,8 @@
 # Skill sources: brainstorm draft
 
-**Status: draft, 2026-11-01.** This draft is deliberately incomplete. It records the direction the user chose for
-where the server reads skills from. A technical design comes next. Items are marked as a user decision, a
+**Status: superseded by [skill-sources-design.md](skill-sources-design.md), which was implemented in 0.2.0.** This
+draft, written on 2026-11-01, records the direction the user chose for where the server reads skills from, and is
+kept for its decisions table and the alternatives rejected there. Items are marked as a user decision, a
 recommendation, or a provisional idea.
 
 ## Original Idea and Purpose
