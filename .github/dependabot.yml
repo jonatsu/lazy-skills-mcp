@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # The workflows pin actions to commit SHAs; this keeps those SHAs current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  # uv.lock. A ruff update must also change the ruff-pre-commit rev in .pre-commit-config.yaml.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    # Update uv.lock within the ranges in pyproject.toml, never the ranges themselves: the upper cap mcp<3 is
+    # deliberate, and raising it is a code change.
+    versioning-strategy: lockfile-only
+    groups:
+      dependencies:
+        patterns: ["*"]

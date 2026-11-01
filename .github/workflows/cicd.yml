@@ -1,0 +1,173 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+# Every job reads only; the release job alone asks for write access.
+permissions:
+  contents: read
+
+# A new push to a pull request cancels its older run. Runs for main and for tags always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Every job installs from uv.lock with `--locked`, which also fails when the lock no longer matches pyproject.toml.
+# The tools (pre-commit, ruff, mypy, pip-audit, twine) come from the lock's dependency groups.
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+      # The same hooks as a local commit: file hygiene, both secret scanners, Ruff, and mypy.
+      - run: uv run pre-commit run --all-files --show-diff-on-failure
+
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+      # Strict mode over the package and the tests ([tool.mypy] in pyproject.toml).
+      - run: uv run mypy
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest -v
+
+  # The lowest versions pyproject.toml allows for each direct dependency, so a raised minimum is never only a claim.
+  test-lowest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          python-version: "3.12"
+      - run: uv venv .venv-lowest
+      - run: uv pip install --python .venv-lowest --resolution lowest-direct -e . --group test
+      - run: .venv-lowest/bin/python -m pytest -q
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv build
+      - run: uv run twine check dist/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dist
+          path: dist/
+
+  # Known vulnerabilities in the locked runtime dependencies, the set a user installs; development tools are left out.
+  # A finding fails a release tag and only reports elsewhere, so an advisory published upstream does not block every
+  # push.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv export --locked --no-default-groups --no-emit-project --format requirements-txt -o runtime-requirements.txt
+      - name: pip-audit
+        run: |
+          set -o pipefail
+          uv run pip-audit --strict --desc --disable-pip --require-hashes -r runtime-requirements.txt \
+            | tee pip-audit-report.txt
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## pip-audit (locked runtime dependencies)"
+            echo '```'
+            cat pip-audit-report.txt 2>/dev/null || echo "pip-audit did not run"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, typecheck, test, test-lowest, build, audit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write  # create the GitHub release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      # The version is set by hand in pyproject.toml, so a tag that disagrees with it would publish mislabelled files.
+      - name: Check the tag matches the package version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ ! -f "dist/lazy_skills_mcp-${VERSION}.tar.gz" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match the built package:" >&2
+            ls dist >&2
+            exit 1
+          fi
+      - name: Extract changelog
+        if: ${{ !contains(github.ref_name, 'rc') }}
+        run: |
+          # Extract the section for this version (e.g. "## 0.1.0" from tag "v0.1.0"), without its heading.
+          # A range pattern /^## x$/,/^## / would end on its own first line and leave the notes empty.
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v heading="## ${VERSION}" '$0 == heading {found = 1; next} found && /^## / {exit} found' \
+            CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "CHANGELOG.md has no '## ${VERSION}' section" >&2
+            exit 1
+          fi
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *rc* ]]; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              --prerelease \
+              dist/*
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file release-notes.md \
+              dist/*
+          fi
