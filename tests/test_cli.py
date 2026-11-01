@@ -61,3 +61,36 @@ def test_does_not_start_the_server(
 
     assert status == 0
     assert capsys.readouterr().err == ""
+
+
+def test_several_sources_print_one_per_line_in_order(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("LAZY_SKILLS_MCP_SKILLS_DIR", raising=False)
+
+    status = main(["--skills-dir", "/b/skills", "--skills-dir", "/a/skills", "--print-skills-dir"])
+
+    assert status == 0
+    assert capsys.readouterr().out == "/b/skills\n/a/skills\n"
+
+
+def test_skip_folders_are_not_printed(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("LAZY_SKILLS_MCP_SKILLS_DIR", "/env/skills-dir")
+
+    status = main(["--skip-installed-in", "/native/skills", "--print-skills-dir"])
+
+    assert status == 0
+    assert capsys.readouterr().out == "/env/skills-dir\n"
+
+
+def test_a_missing_second_source_fails_startup_naming_it(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], skills_dir: Path
+) -> None:
+    missing = skills_dir.parent / "not-there"
+
+    status = main(["--skills-dir", str(skills_dir), "--skills-dir", str(missing)])
+
+    assert status == 1
+    assert str(missing) in capsys.readouterr().err

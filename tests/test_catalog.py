@@ -13,7 +13,7 @@ from lazy_skills_mcp.skill import list_skill_files
 
 
 def test_a_valid_directory_yields_every_skill_sorted_by_name(skills_dir: Path) -> None:
-    catalog = load_catalog(skills_dir)
+    catalog = load_catalog([skills_dir])
 
     assert [entry.name for entry in catalog] == ["embedded-linux-bringup", "nix-flakes"]
     assert catalog[0].description == "Bring up a new embedded Linux board"
@@ -31,7 +31,7 @@ def test_other_files_are_listed_as_relative_paths(tmp_path: Path) -> None:
     (skill_dir / "references" / "notes.md").write_text("notes", encoding="utf-8")
     (skill_dir / "scripts" / "run.sh").write_text("#!/bin/sh\n", encoding="utf-8")
 
-    (catalog_entry,) = load_catalog(root)
+    (catalog_entry,) = load_catalog([root])
 
     assert sorted(list_skill_files(catalog_entry.directory)) == [
         "references/notes.md",
@@ -55,7 +55,7 @@ def test_a_skill_with_unparsable_frontmatter_is_skipped_and_logged(
     )
 
     with caplog.at_level(logging.WARNING):
-        catalog = load_catalog(root)
+        catalog = load_catalog([root])
 
     assert [entry.name for entry in catalog] == ["good-skill"]
     assert "broken-skill" in caplog.text
@@ -75,7 +75,7 @@ def test_a_skill_with_missing_frontmatter_is_skipped_and_logged(
     )
 
     with caplog.at_level(logging.WARNING):
-        catalog = load_catalog(root)
+        catalog = load_catalog([root])
 
     assert [entry.name for entry in catalog] == ["good-skill"]
     assert "plain-skill" in caplog.text
@@ -97,7 +97,7 @@ def test_a_skill_whose_frontmatter_name_does_not_match_its_directory_is_skipped(
     )
 
     with caplog.at_level(logging.WARNING):
-        catalog = load_catalog(root)
+        catalog = load_catalog([root])
 
     assert [entry.name for entry in catalog] == ["good-skill"]
     assert "on-disk-name" in caplog.text
@@ -119,7 +119,7 @@ def test_a_symlink_leaving_the_skill_directory_is_excluded_from_its_files(
     outside_secret.write_text("must not be reachable", encoding="utf-8")
     (skill_dir / "references" / "escape.md").symlink_to(outside_secret)
 
-    (catalog_entry,) = load_catalog(root)
+    (catalog_entry,) = load_catalog([root])
 
     assert sorted(list_skill_files(catalog_entry.directory)) == ["references/inside.md"]
 
@@ -128,7 +128,7 @@ def test_a_missing_directory_fails_closed_naming_the_path(tmp_path: Path) -> Non
     missing = tmp_path / "does-not-exist"
 
     with pytest.raises(SkillsDirectoryError, match=str(missing)):
-        load_catalog(missing)
+        load_catalog([missing])
 
 
 def test_an_empty_directory_fails_closed_naming_the_path(tmp_path: Path) -> None:
@@ -136,7 +136,7 @@ def test_an_empty_directory_fails_closed_naming_the_path(tmp_path: Path) -> None
     empty.mkdir()
 
     with pytest.raises(SkillsDirectoryError, match=str(empty)):
-        load_catalog(empty)
+        load_catalog([empty])
 
 
 def test_a_directory_holding_only_invalid_skills_fails_closed(tmp_path: Path) -> None:
@@ -146,7 +146,7 @@ def test_a_directory_holding_only_invalid_skills_fails_closed(tmp_path: Path) ->
     (broken / "SKILL.md").write_text("no frontmatter here\n", encoding="utf-8")
 
     with pytest.raises(SkillsDirectoryError, match=str(root)):
-        load_catalog(root)
+        load_catalog([root])
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permission bits")
@@ -156,7 +156,7 @@ def test_an_unreadable_directory_fails_closed_naming_the_path(tmp_path: Path) ->
     try:
         root.chmod(0o000)
         with pytest.raises(SkillsDirectoryError, match=str(root)):
-            load_catalog(root)
+            load_catalog([root])
     finally:
         root.chmod(0o755)
 
@@ -177,7 +177,7 @@ def test_a_skill_with_frontmatter_missing_the_description_is_skipped_and_logged(
     )
 
     with caplog.at_level(logging.WARNING):
-        catalog = load_catalog(root)
+        catalog = load_catalog([root])
 
     assert [entry.name for entry in catalog] == ["good-skill"]
     assert "incomplete-skill" in caplog.text
@@ -198,7 +198,7 @@ def test_a_folder_without_a_manifest_is_a_silent_group(
     )
 
     with caplog.at_level(logging.WARNING):
-        catalog = load_catalog(root)
+        catalog = load_catalog([root])
 
     assert [entry.name for entry in catalog] == ["good-skill"]
     assert caplog.text == ""
@@ -221,7 +221,7 @@ def test_a_symlink_chain_leaving_the_skill_directory_is_excluded_from_its_files(
     middle_link.symlink_to(outside_secret)
     (skill_dir / "references" / "escape.md").symlink_to(middle_link)
 
-    (catalog_entry,) = load_catalog(root)
+    (catalog_entry,) = load_catalog([root])
 
     assert sorted(list_skill_files(catalog_entry.directory)) == ["references/inside.md"]
 
@@ -240,7 +240,7 @@ def test_a_relative_dotdot_symlink_target_that_escapes_is_excluded(tmp_path: Pat
     escape_link = skill_dir / "references" / "escape.md"
     escape_link.symlink_to(Path("..") / ".." / ".." / outside_secret.name)
 
-    (catalog_entry,) = load_catalog(root)
+    (catalog_entry,) = load_catalog([root])
 
     assert sorted(list_skill_files(catalog_entry.directory)) == ["references/inside.md"]
 
@@ -260,7 +260,7 @@ def test_a_symlinked_subdirectory_leaving_the_skill_directory_excludes_its_files
     (outside_dir / "secret.txt").write_text("must not be reachable", encoding="utf-8")
     (skill_dir / "linked-out").symlink_to(outside_dir)
 
-    (catalog_entry,) = load_catalog(root)
+    (catalog_entry,) = load_catalog([root])
 
     assert list_skill_files(catalog_entry.directory) == ()
 
@@ -283,7 +283,7 @@ def test_a_symlinked_skill_folder_pointing_outside_the_source_is_served(
     (root / "linked-skill").symlink_to(store)
 
     with caplog.at_level(logging.WARNING):
-        (catalog_entry,) = load_catalog(root)
+        (catalog_entry,) = load_catalog([root])
 
     assert catalog_entry.name == "linked-skill"
     assert list_skill_files(catalog_entry.directory) == ("notes.md",)
@@ -299,7 +299,81 @@ def test_a_scan_never_lists_skill_files(skills_dir: Path, monkeypatch: pytest.Mo
 
     monkeypatch.setattr(Path, "rglob", fail)
 
-    assert [entry.name for entry in load_catalog(skills_dir)] == [
+    assert [entry.name for entry in load_catalog([skills_dir])] == [
         "embedded-linux-bringup",
         "nix-flakes",
     ]
+
+
+def _write_skill(skill_dir: Path, description: str) -> Path:
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: {skill_dir.name}\ndescription: {description}\n---\nbody\n",
+        encoding="utf-8",
+    )
+    return skill_dir
+
+
+def test_the_first_source_wins_a_duplicate_name_and_both_folders_are_logged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    personal = _write_skill(tmp_path / "personal" / "python-style", "my own rules")
+    shared = _write_skill(tmp_path / "shared" / "python" / "python-style", "shared rules")
+    _write_skill(tmp_path / "shared" / "python" / "python-testing", "tests")
+
+    with caplog.at_level(logging.WARNING):
+        catalog = load_catalog([tmp_path / "personal", tmp_path / "shared"])
+
+    assert [(entry.name, entry.directory) for entry in catalog] == [
+        ("python-style", personal),
+        ("python-testing", tmp_path / "shared" / "python" / "python-testing"),
+    ]
+    assert str(personal) in caplog.text
+    assert str(shared) in caplog.text
+
+
+def test_within_one_source_the_first_path_in_walk_order_wins(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    first = _write_skill(tmp_path / "source" / "a" / "same-name", "first")
+    second = _write_skill(tmp_path / "source" / "b" / "same-name", "second")
+
+    with caplog.at_level(logging.WARNING):
+        (entry,) = load_catalog([tmp_path / "source"])
+
+    assert entry.directory == first
+    assert str(first) in caplog.text
+    assert str(second) in caplog.text
+
+
+def test_a_missing_source_among_several_fails_closed_naming_it(skills_dir: Path) -> None:
+    missing = skills_dir.parent / "not-there"
+
+    with pytest.raises(SkillsDirectoryError, match=str(missing)):
+        load_catalog([skills_dir, missing])
+
+
+def test_an_empty_source_beside_a_useful_one_is_logged_not_fatal(
+    tmp_path: Path, skills_dir: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+
+    with caplog.at_level(logging.WARNING):
+        catalog = load_catalog([empty, skills_dir])
+
+    assert [entry.name for entry in catalog] == ["embedded-linux-bringup", "nix-flakes"]
+    assert str(empty) in caplog.text
+
+
+def test_no_valid_skill_in_any_source_fails_closed_naming_them(tmp_path: Path) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+
+    with pytest.raises(SkillsDirectoryError, match="no valid skill") as excinfo:
+        load_catalog([first, second])
+
+    assert str(first) in str(excinfo.value)
+    assert str(second) in str(excinfo.value)

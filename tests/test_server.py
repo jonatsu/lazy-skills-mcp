@@ -16,7 +16,7 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_find_skills_with_no_query_returns_the_whole_catalog(skills_dir: Path) -> None:
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("find_skills", {})
 
@@ -26,7 +26,7 @@ async def test_find_skills_with_no_query_returns_the_whole_catalog(skills_dir: P
 
 
 async def test_find_skills_matches_every_term_case_insensitively(skills_dir: Path) -> None:
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("find_skills", {"query": "EMBEDDED board"})
 
@@ -35,7 +35,7 @@ async def test_find_skills_matches_every_term_case_insensitively(skills_dir: Pat
 
 
 async def test_find_skills_with_no_matching_term_returns_nothing(skills_dir: Path) -> None:
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("find_skills", {"query": "nonexistent-term"})
 
@@ -45,7 +45,7 @@ async def test_find_skills_with_no_matching_term_returns_nothing(skills_dir: Pat
 async def test_find_skills_with_an_empty_string_query_returns_the_whole_catalog(
     skills_dir: Path,
 ) -> None:
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("find_skills", {"query": ""})
 
@@ -61,7 +61,7 @@ async def test_find_skills_returns_each_skill_a_multi_concept_query_touches(
     This is the 2026-10-04 Copilot failure: "nix flake python packaging" spans two
     skills, and the earlier all-terms rule returned neither.
     """
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("find_skills", {"query": "embedded flakes"})
 
@@ -86,7 +86,7 @@ async def test_find_skills_matches_case_insensitively_against_description_conten
         encoding="utf-8",
     )
 
-    server = build_server(root)
+    server = build_server([root])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("find_skills", {"query": "yocto image"})
 
@@ -97,7 +97,7 @@ async def test_find_skills_matches_case_insensitively_against_description_conten
 async def test_find_skills_description_embeds_the_alphabetical_catalog(
     skills_dir: Path,
 ) -> None:
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         tools = await client.list_tools()
 
@@ -116,7 +116,7 @@ async def test_load_skill_returns_content_directory_and_files(tmp_path: Path) ->
     )
     (skill_dir / "references" / "notes.md").write_text("notes", encoding="utf-8")
 
-    server = build_server(root)
+    server = build_server([root])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("load_skill", {"name": "my-skill"})
 
@@ -143,7 +143,7 @@ async def test_load_skill_returns_the_full_manifest_text_exactly(tmp_path: Path)
     )
     (skill_dir / "SKILL.md").write_text(manifest_text, encoding="utf-8")
 
-    server = build_server(root)
+    server = build_server([root])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("load_skill", {"name": "my-skill"})
 
@@ -170,7 +170,7 @@ async def test_load_skill_returns_an_absolute_directory_even_from_a_relative_ski
     )
     monkeypatch.chdir(tmp_path)
 
-    server = build_server(Path("lazy"))
+    server = build_server([Path("lazy")])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("load_skill", {"name": "my-skill"})
 
@@ -185,7 +185,7 @@ async def test_load_skill_rejects_a_path_traversal_style_name_as_unknown(
     """`load_skill` must resolve a name only against the scanned catalog, never
     as a filesystem path, so a traversal-shaped name is just another unknown
     name."""
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("load_skill", {"name": "../secret"})
 
@@ -198,7 +198,7 @@ async def test_load_skill_rejects_a_path_traversal_style_name_as_unknown(
 async def test_load_skill_with_an_unknown_name_names_the_closest_matches(
     skills_dir: Path,
 ) -> None:
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("load_skill", {"name": "nix-flake"})
 
@@ -209,7 +209,7 @@ async def test_load_skill_with_an_unknown_name_names_the_closest_matches(
 
 
 async def test_find_skills_and_load_skill_are_declared_read_only(skills_dir: Path) -> None:
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         tools = await client.list_tools()
 
@@ -241,7 +241,7 @@ async def test_find_skills_description_is_fixed_while_the_catalog_rescans_on_eac
         "---\nname: first-skill\ndescription: exists at startup\n---\nbody\n", encoding="utf-8"
     )
 
-    server = build_server(root)
+    server = build_server([root])
 
     second_skill = root / "second-skill"
     second_skill.mkdir(parents=True)
@@ -272,7 +272,7 @@ async def test_building_the_server_with_a_missing_directory_fails_closed(
 
     missing = tmp_path / "does-not-exist"
     with pytest.raises(SkillsDirectoryError, match=str(missing)):
-        build_server(missing)
+        build_server([missing])
 
 
 async def test_nothing_is_written_to_stdout_while_serving_tool_calls(
@@ -281,7 +281,7 @@ async def test_nothing_is_written_to_stdout_while_serving_tool_calls(
     captured = io.StringIO()
     monkeypatch.setattr(sys, "stdout", captured)
 
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         await client.list_tools()
         await client.call_tool("find_skills", {})
@@ -292,7 +292,7 @@ async def test_nothing_is_written_to_stdout_while_serving_tool_calls(
 
 
 def test_server_instructions_point_agents_at_find_skills(skills_dir: Path) -> None:
-    server = build_server(skills_dir)
+    server = build_server([skills_dir])
 
     assert server.instructions is not None
     assert "find_skills" in server.instructions

@@ -1,46 +1,78 @@
-"""Resolve the lazy skills directory, with no arithmetic over this package's own path.
+"""Resolve where the server reads skills from and which folders it skips.
 
-One function decides the answer, by the precedence the design fixes: an explicit
-``--skills-dir`` argument, then the ``LAZY_SKILLS_MCP_SKILLS_DIR`` environment
-variable, then ``$XDG_DATA_HOME/lazy-skills-mcp/skills``, then
-``~/.local/share/lazy-skills-mcp/skills``. The function is a pure computation
-over its argument and the environment; it never touches the filesystem, so callers
-decide separately whether the resolved path actually exists.
+Sources come from the first of these that yields a path, and a layer never merges with
+a lower one: every non-empty ``--skills-dir`` value, in order; then the
+``LAZY_SKILLS_MCP_SKILLS_DIR`` environment variable, split like ``PATH``; then
+``$XDG_DATA_HOME/lazy-skills-mcp/skills``; then ``~/.local/share/lazy-skills-mcp/skills``.
+Skip folders come only from ``--skip-installed-in``. A leading ``~`` is expanded in
+every path, because agents start MCP servers without a shell to expand it.
+
+Resolution is a pure computation over its arguments and the environment; it never
+touches the filesystem, so callers decide separately whether the paths exist.
 """
 
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
+
+import attrs
 
 SKILLS_DIR_ENV_VAR = "LAZY_SKILLS_MCP_SKILLS_DIR"
 XDG_DATA_HOME_VAR = "XDG_DATA_HOME"
-LAZY_SKILLS_RELATIVE_PATH = ("lazy-skills-mcp", "skills")
+DEFAULT_RELATIVE_PATH = ("lazy-skills-mcp", "skills")
+_HOME_PREFIX = "~"
 
 
-def resolve_skills_dir(explicit: str | None) -> Path:
-    """Resolve the lazy skills directory by the documented precedence.
+@attrs.frozen
+class SkillSources:
+    """The resolved configuration: where to read skills, and which folders to skip."""
+
+    sources: tuple[Path, ...]
+    skip_dirs: tuple[Path, ...]
+
+
+def resolve_skill_sources(skills_dirs: Sequence[str], skip_dirs: Sequence[str]) -> SkillSources:
+    """Resolve the sources and skip folders by the documented precedence.
 
     Args:
-        explicit: The ``--skills-dir`` command line value, or ``None`` when the
-            caller passed nothing. An empty string is treated the same as ``None``,
-            since an empty argument carries no directory.
+        skills_dirs: The ``--skills-dir`` values in command-line order; empty values
+            are ignored.
+        skip_dirs: The ``--skip-installed-in`` values in command-line order; empty
+            values are ignored.
 
     Returns:
-        ``explicit`` as a path when given; otherwise the ``LAZY_SKILLS_MCP_SKILLS_DIR``
-        environment variable when set and non-empty; otherwise
-        ``$XDG_DATA_HOME/lazy-skills-mcp/skills`` when ``XDG_DATA_HOME`` is set
-        and non-empty; otherwise ``~/.local/share/lazy-skills-mcp/skills``.
+        The sources from the first layer that yields at least one path, and the skip
+        folders, each with a leading ``~`` expanded.
     """
-    if explicit:
-        return Path(explicit)
+    sources = _non_empty_paths(skills_dirs) or _sources_from_environment() or (_default_source(),)
+    return SkillSources(sources=sources, skip_dirs=_non_empty_paths(skip_dirs))
 
-    env_skills_dir = os.environ.get(SKILLS_DIR_ENV_VAR)
-    if env_skills_dir:
-        return Path(env_skills_dir)
 
+def _sources_from_environment() -> tuple[Path, ...]:
+    """The variable's entries split on ``os.pathsep``, or an empty tuple when unset."""
+    raw = os.environ.get(SKILLS_DIR_ENV_VAR, "")
+    return _non_empty_paths(raw.split(os.pathsep))
+
+
+def _default_source() -> Path:
+    """``$XDG_DATA_HOME/lazy-skills-mcp/skills``, else ``~/.local/share/lazy-skills-mcp/skills``."""
     xdg_data_home = os.environ.get(XDG_DATA_HOME_VAR)
     if xdg_data_home:
-        return Path(xdg_data_home, *LAZY_SKILLS_RELATIVE_PATH)
+        return Path(xdg_data_home, *DEFAULT_RELATIVE_PATH)
+    return Path.home() / ".local" / "share" / Path(*DEFAULT_RELATIVE_PATH)
 
-    return Path.home() / ".local" / "share" / Path(*LAZY_SKILLS_RELATIVE_PATH)
+
+def _non_empty_paths(values: Sequence[str]) -> tuple[Path, ...]:
+    """The non-empty values as paths, in order, with a leading ``~`` expanded."""
+    return tuple(_expand_home(value) for value in values if value)
+
+
+def _expand_home(value: str) -> Path:
+    """Expand a leading ``~`` or ``~/`` to the home folder; leave anything else as given."""
+    if value == _HOME_PREFIX:
+        return Path.home()
+    if value.startswith(f"{_HOME_PREFIX}/"):
+        return Path.home() / value.removeprefix(f"{_HOME_PREFIX}/")
+    return Path(value)

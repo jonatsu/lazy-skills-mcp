@@ -10,6 +10,7 @@ not act on `list_changed` notifications.
 from __future__ import annotations
 
 import difflib
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TypedDict
 
@@ -81,22 +82,22 @@ def _find_skills_description(catalog_names: list[str]) -> str:
     )
 
 
-def build_server(skills_dir: Path) -> MCPServer[None]:
-    """Build the lazy-skills-mcp `MCPServer` over `skills_dir`.
+def build_server(sources: Sequence[Path]) -> MCPServer[None]:
+    """Build the lazy-skills-mcp `MCPServer` over `sources`.
 
     Args:
-        skills_dir: The resolved lazy skills directory.
+        sources: The skill sources, in priority order.
 
     Returns:
         An `MCPServer` exposing `find_skills` and `load_skill`, ready for `run()`.
 
     Raises:
-        SkillsDirectoryError: `skills_dir` is missing, unreadable, or holds no
-            valid skill. The catalog is scanned once here, both to build
+        SkillsDirectoryError: A source is missing or unreadable, or no source holds
+            a valid skill. The catalog is scanned once here, both to build
             `find_skills`'s fixed description and to fail the server closed before
-            it ever starts, per the design's failure handling.
+            it ever starts.
     """
-    startup_names = sorted(entry.name for entry in load_catalog(skills_dir))
+    startup_names = sorted(entry.name for entry in load_catalog(sources))
 
     server: MCPServer[None] = MCPServer("lazy-skills-mcp", instructions=_SERVER_INSTRUCTIONS)
 
@@ -106,7 +107,7 @@ def build_server(skills_dir: Path) -> MCPServer[None]:
         annotations=_read_only_annotations(_FIND_SKILLS_TITLE),
     )
     def find_skills(query: str | None = None) -> FindSkillsResult:
-        matching = rank_entries(load_catalog(skills_dir), query)
+        matching = rank_entries(load_catalog(sources), query)
         return FindSkillsResult(
             skills=[
                 SkillSummary(name=entry.name, description=entry.description) for entry in matching
@@ -132,7 +133,7 @@ def build_server(skills_dir: Path) -> MCPServer[None]:
             ToolError: `name` matches no catalog entry; the message names the
                 closest catalog names.
         """
-        catalog = load_catalog(skills_dir)
+        catalog = load_catalog(sources)
         by_name = {entry.name: entry for entry in catalog}
         entry = by_name.get(name)
         if entry is None:
