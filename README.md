@@ -43,7 +43,7 @@ files, which it reads with its own tools:
 
 ## Install
 
-The server needs Python 3.12. uv downloads it when it is missing; pipx needs it installed.
+The server needs Python 3.12 or newer. uv downloads a suitable Python when none is installed; pipx needs one installed.
 
 **Install from the repository with uv**, which puts `lazy-skills-mcp` on `PATH`:
 
@@ -60,7 +60,7 @@ uv tool install --reinstall git+https://github.com/jonatsu/lazy-skills-mcp@<comm
 **Install with pipx** instead:
 
 ```bash
-pipx install --python python3.12 git+https://github.com/jonatsu/lazy-skills-mcp
+pipx install git+https://github.com/jonatsu/lazy-skills-mcp
 ```
 
 **Run it without installing**, with uvx, by registering this as the agent's server command:
