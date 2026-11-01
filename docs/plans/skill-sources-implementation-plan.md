@@ -227,6 +227,12 @@ base `4f9d7aa` to the head. A separate reviewer runs `conformance-review` agains
 over the same revisions. Both reviews' material findings go into the execution record, and both must close before the
 release is proposed to the user.
 
+Three more passes follow, at the user's request. A `clean-code-reviewer` judges maintainability over the same range,
+and an `architecture-reviewer` judges the design and the implemented structure, writing its report to
+`docs/reviews/2026-11-02-architecture-review.md`. Once their findings are handled, Codex runs read-only second
+passes on code quality and on the repository as a project: documentation, cleanliness, readability,
+user-friendliness and workflows. The tag waits until every pass has closed.
+
 ## Execution Record
 
 | Unit | Result | Commit | Notes |
@@ -238,4 +244,4 @@ release is proposed to the user.
 | 4 | Done: 91 passed on 3.12, 3.13 and 3.14. P3 review closed: four findings (unreadable folders crash the scan on 3.12 and 3.13; a depth-limited group hides a shorter path; a misleading warning for nested sources; two untested guarantees) fixed in `558585d` with the design amended in `e76d0ed`; the recheck found a silent drop of unsearchable folders, fixed in `5abe1f3` | `0a17bb3`, `7682a90` | `7682a90` formats `installed.py`, which `just check` skipped while it was untracked |
 | 5 | Done: 93 passed, hooks clean; self-reviewed | `a20b539` | |
 | 6 | Done: README, help text, docstrings, CHANGELOG and version 0.2.0; README commands run against fixture trees and their output matched (`--print-skills-dir`, the not-found and all-skipped errors) | `5fbec13`, `e46e766`, `ce83763` | |
-| Final | In progress: CI passed on `e46e766`; real `jonatsu/agent-skills` checkout (97 skills) with `--skip-installed-in ~/.codex/skills` (33 names) served exactly the 65 expected, no warnings. Final code review approved with one required fix; conformance review found two defects, a test gap and doc items; all fixed in `22bc4a7` and `ce83763`. Open: clean-code and architecture reviews (proposed to the user), the `v0.2.0` tag (needs authorization) | | |
+| Final | In progress: CI passed on `e46e766`; real `jonatsu/agent-skills` checkout (97 skills) with `--skip-installed-in ~/.codex/skills` (33 names) served exactly the 65 expected, no warnings. Final code review approved with one required fix; conformance review found two defects, a test gap and doc items; all fixed in `22bc4a7` and `ce83763`. Clean-code review: duplicated test helpers, skill tests inside the catalog tests, unclear folder-check names, two manifest reads, an unexplained condition; fixed in `5af47d8` and `5a9bec2`. Architecture review: sound, nothing blocking; the contract omitted relied-on behaviour and `load_skill` lacked the scan's error handling, fixed in `31553e5` and `d9dad31`, the rest deferred to `BACKLOG.md` or accepted in design section 11. Open: Codex second passes, the `v0.2.0` tag (needs authorization) | `5af47d8`, `5a9bec2`, `d9dad31`, `31553e5` | 112 passed on 3.12, 3.13 and 3.14 |
