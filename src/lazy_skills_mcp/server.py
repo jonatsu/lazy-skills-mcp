@@ -18,6 +18,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
+from lazy_skills_mcp import __version__
 from lazy_skills_mcp.catalog import SkillsDirectoryError, load_catalog
 from lazy_skills_mcp.ranking import MAX_RESULTS, rank_entries
 from lazy_skills_mcp.skill import SkillEntry, list_skill_files, manifest_path
@@ -110,7 +111,9 @@ def build_server(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> MCP
     """
     startup_names = [entry.name for entry in load_catalog(sources, skip_dirs)]
 
-    server: MCPServer[None] = MCPServer("lazy-skills-mcp", instructions=_SERVER_INSTRUCTIONS)
+    server: MCPServer[None] = MCPServer(
+        "lazy-skills-mcp", instructions=_SERVER_INSTRUCTIONS, version=__version__
+    )
 
     def current_catalog() -> tuple[SkillEntry, ...]:
         """Rescan the catalog for one tool call, naming the failing path in the tool error."""

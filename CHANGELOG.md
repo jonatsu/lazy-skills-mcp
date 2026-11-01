@@ -14,6 +14,7 @@
 - `--skip-installed-in DIR`, repeatable, leaves out every skill whose folder name or frontmatter `name` appears in a
   folder the agent loads natively. It has no default.
 - A leading `~` in any path is expanded, because agents start MCP servers without a shell.
+- `--version` prints the installed version, and the server reports it to clients in its MCP `serverInfo`.
 - Package metadata: a description, the README as the long description, the MIT licence, and project URLs.
 
 ### Changed

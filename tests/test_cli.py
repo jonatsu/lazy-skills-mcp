@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from lazy_skills_mcp import __version__
 from lazy_skills_mcp.cli import main
 
 
@@ -110,3 +111,11 @@ def test_without_a_home_folder_startup_fails_with_a_message_not_a_traceback(
 
     assert status == 1
     assert "set HOME" in capsys.readouterr().err
+
+
+def test_version_prints_the_package_version(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--version"])
+
+    assert excinfo.value.code == 0
+    assert capsys.readouterr().out == f"lazy-skills-mcp {__version__}\n"

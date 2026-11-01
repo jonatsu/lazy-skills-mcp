@@ -6,6 +6,7 @@ import argparse
 import logging
 import sys
 
+from lazy_skills_mcp import __version__
 from lazy_skills_mcp.catalog import SkillsDirectoryError
 from lazy_skills_mcp.location import HomeFolderError, resolve_skill_sources
 from lazy_skills_mcp.server import build_server
@@ -38,6 +39,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
             "not served. Repeatable. Default: none."
         ),
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
         "--print-skills-dir",
         action="store_true",

@@ -12,6 +12,7 @@ import pytest
 from mcp import Client
 from mcp.types import TextContent
 
+from lazy_skills_mcp import __version__
 from lazy_skills_mcp import server as server_module
 from lazy_skills_mcp.catalog import SkillsDirectoryError
 from lazy_skills_mcp.server import MAX_DESCRIBED_NAMES, build_server
@@ -363,3 +364,7 @@ async def test_a_skill_that_cannot_be_read_at_load_time_is_named_in_the_tool_err
     (content,) = result.content
     assert isinstance(content, TextContent)
     assert str(skills_dir / "nix-flakes") in content.text
+
+
+def test_the_server_reports_the_package_version(skills_dir: Path) -> None:
+    assert build_server([skills_dir]).version == __version__
