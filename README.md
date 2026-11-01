@@ -4,7 +4,7 @@ An MCP server that lets a coding agent search your [Agent Skills](https://agents
 one only when a request needs it, instead of loading every skill's description into every session.
 
 An agent that loads skills natively pays for each skill's description in every session, even for specialized
-skills such as embedded Linux or Nix that few sessions use. Behind this server, those skills cost two tool
+skills that few sessions use. Behind this server, those skills cost two tool
 definitions, `find_skills` and `load_skill`, and the agent reads a skill's full text only when it asks for it. It
 was built for Codex and GitHub Copilot CLI. An agent that already defers skill loading itself, such as Claude
 Code, gains nothing from it.
@@ -165,12 +165,16 @@ searching the proxy for skills, and agents do not reliably take that step. Direc
 hundred tokens per session and keeps the catalog in plain view.
 
 An agent also needs a reason to search. Add a line to its instructions that names the kinds of skill behind the
-server and tells it to call `find_skills` when a request touches one of them, for example:
+server and tells it to call `find_skills` when a request touches one of them. Replace the placeholder with the
+topics your own skills cover:
 
 ```markdown
-Skills for embedded Linux, Nix, and Yocto are not preloaded: the lazy-skills-mcp server holds them. Before working
+Skills for <the topics your skills cover> are not preloaded: the lazy-skills-mcp server holds them. Before working
 on one of those topics, call its find_skills tool, then load the best match with load_skill.
 ```
+
+Naming the topics matters: `find_skills`'s description lists the skill names, but an agent searches more reliably
+when its own instructions say which requests need a skill.
 
 ## Usage
 
