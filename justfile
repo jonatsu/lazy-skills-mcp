@@ -12,4 +12,4 @@ check *args:
 
 # Run the test suite on every supported Python, from the 3.12 minimum up. *args forwards to pytest.
 test-all-pythons *args:
-    for v in 3.12 3.13 3.14; do echo "== Python $v"; uv run --isolated --python "$v" pytest {{ args }} || exit 1; done
+    for v in 3.12 3.13 3.14; do echo "== Python $v"; uv run --locked --isolated --python "$v" pytest {{ args }} || exit 1; done

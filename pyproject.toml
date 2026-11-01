@@ -52,9 +52,9 @@ line-length = 100
 
 [tool.ruff.lint]
 # The repository baseline plus the families this code exercises: filesystem
-# paths (skill directory resolution and confinement) and YAML frontmatter read
-# from an untrusted skill directory.
-select = ["E", "F", "I", "UP", "B", "SIM", "W", "C4", "N", "PTH", "RUF", "TID", "FBT"]
+# paths (PTH, for skill folder resolution and confinement) and security checks
+# (S, which flags unsafe YAML loading of frontmatter from untrusted skill folders).
+select = ["E", "F", "I", "UP", "B", "SIM", "W", "C4", "N", "PTH", "RUF", "TID", "FBT", "S"]
 ignore = ["E501"]  # line length handled by the formatter
 
 [tool.ruff.lint.flake8-tidy-imports]

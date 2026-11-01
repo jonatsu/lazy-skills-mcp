@@ -1,4 +1,4 @@
 [tools]
 # The first version is the default; the others serve `just test-all-pythons`.
 python = ["3.12.14", "3.13.16", "3.14.9"]
-uv = "latest"
+uv = "0.12.21"
