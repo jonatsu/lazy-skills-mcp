@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from lazy_skills_mcp.catalog import SkillsDirectoryError, load_catalog
+from lazy_skills_mcp.catalog import SkillsDirectoryError, list_skill_files, load_catalog
 
 
 def test_a_valid_directory_yields_every_skill_sorted_by_name(skills_dir: Path) -> None:
@@ -32,7 +32,7 @@ def test_other_files_are_listed_as_relative_paths(tmp_path: Path) -> None:
 
     (catalog_entry,) = load_catalog(root)
 
-    assert sorted(catalog_entry.files) == [
+    assert sorted(list_skill_files(catalog_entry.directory)) == [
         "references/notes.md",
         "scripts/run.sh",
     ]
@@ -120,7 +120,7 @@ def test_a_symlink_leaving_the_skill_directory_is_excluded_from_its_files(
 
     (catalog_entry,) = load_catalog(root)
 
-    assert sorted(catalog_entry.files) == ["references/inside.md"]
+    assert sorted(list_skill_files(catalog_entry.directory)) == ["references/inside.md"]
 
 
 def test_a_missing_directory_fails_closed_naming_the_path(tmp_path: Path) -> None:
@@ -221,7 +221,7 @@ def test_a_symlink_chain_leaving_the_skill_directory_is_excluded_from_its_files(
 
     (catalog_entry,) = load_catalog(root)
 
-    assert sorted(catalog_entry.files) == ["references/inside.md"]
+    assert sorted(list_skill_files(catalog_entry.directory)) == ["references/inside.md"]
 
 
 def test_a_relative_dotdot_symlink_target_that_escapes_is_excluded(tmp_path: Path) -> None:
@@ -240,7 +240,7 @@ def test_a_relative_dotdot_symlink_target_that_escapes_is_excluded(tmp_path: Pat
 
     (catalog_entry,) = load_catalog(root)
 
-    assert sorted(catalog_entry.files) == ["references/inside.md"]
+    assert sorted(list_skill_files(catalog_entry.directory)) == ["references/inside.md"]
 
 
 def test_a_symlinked_subdirectory_leaving_the_skill_directory_excludes_its_files(
@@ -260,7 +260,7 @@ def test_a_symlinked_subdirectory_leaving_the_skill_directory_excludes_its_files
 
     (catalog_entry,) = load_catalog(root)
 
-    assert catalog_entry.files == ()
+    assert list_skill_files(catalog_entry.directory) == ()
 
 
 def test_a_symlinked_skill_directory_pointing_outside_the_lazy_tier_is_excluded(
@@ -295,3 +295,17 @@ def test_a_symlinked_skill_directory_pointing_outside_the_lazy_tier_is_excluded(
         "a symlinked skill directory pointing outside the lazy tier must be "
         "excluded from the catalog, not served"
     )
+
+
+def test_a_scan_never_lists_skill_files(skills_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scan reads only each SKILL.md; listing a skill's files is load_skill's job."""
+
+    def fail(skill_dir: Path) -> tuple[str, ...]:
+        raise AssertionError(f"scan listed the files of {skill_dir}")
+
+    monkeypatch.setattr("lazy_skills_mcp.catalog.list_skill_files", fail)
+
+    assert [entry.name for entry in load_catalog(skills_dir)] == [
+        "embedded-linux-bringup",
+        "nix-flakes",
+    ]

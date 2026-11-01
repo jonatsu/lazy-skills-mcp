@@ -37,7 +37,6 @@ class SkillEntry:
     name: str
     description: str
     directory: Path
-    files: tuple[str, ...]
 
 
 def load_catalog(skills_dir: Path) -> tuple[SkillEntry, ...]:
@@ -130,7 +129,6 @@ def _load_skill_entry(skill_dir: Path) -> SkillEntry | None:
         name=name,
         description=description,
         directory=skill_dir,
-        files=_list_other_files(skill_dir),
     )
 
 
@@ -151,7 +149,7 @@ def _parse_frontmatter(text: str) -> dict[str, object] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def _list_other_files(skill_dir: Path) -> tuple[str, ...]:
+def list_skill_files(skill_dir: Path) -> tuple[str, ...]:
     """List every file under `skill_dir` other than its own `SKILL.md`.
 
     A path whose resolved target leaves `skill_dir` — a symlink pointing outside —

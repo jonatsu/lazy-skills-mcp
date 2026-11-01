@@ -9,7 +9,7 @@ from lazy_skills_mcp.ranking import MAX_RESULTS, query_terms, rank_entries
 
 
 def _entry(name: str, description: str) -> SkillEntry:
-    return SkillEntry(name=name, description=description, directory=Path(name), files=())
+    return SkillEntry(name=name, description=description, directory=Path(name))
 
 
 def _names(entries: list[SkillEntry]) -> list[str]:
