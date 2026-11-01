@@ -2,15 +2,34 @@
 
 ## Unreleased
 
+## 0.2.0
+
+### Added
+
+- `--skills-dir` can be repeated to read several sources, in priority order, and `LAZY_SKILLS_MCP_SKILLS_DIR` accepts
+  a `PATH`-style list. When two skills share a name, the first found wins and a warning names both folders.
+- Skills in grouped folders are found by layout alone, whatever tool installed them: a folder holding `SKILL.md` is a
+  skill, any other folder is a group searched up to 8 levels deep. Hidden folders are skipped. A source can be a
+  whole skills checkout.
+- `--skip-installed-in DIR`, repeatable, leaves out every skill whose folder name or frontmatter `name` appears in a
+  folder the agent loads natively. It has no default.
+- A leading `~` in any path is expanded, because agents start MCP servers without a shell.
+- Package metadata: a description, the README as the long description, the MIT licence, and project URLs.
+
+### Changed
+
+- A symlinked skill folder whose real location lies outside the source is now served, as a copy would be, instead of
+  skipped. A skill still lists no file outside its own folder.
+- A folder without `SKILL.md` is now a group that is searched, instead of a skipped folder with a warning.
+- `--print-skills-dir` prints one source per line; with a single source, its output is unchanged.
+- `find_skills`'s description names at most 300 skills, then counts the rest.
+- A scan reads only each skill's `SKILL.md`; `load_skill` lists the files of the skill it returns.
+- Startup errors name a "skills source" instead of the "lazy skills directory".
+
 ### Fixed
 
 - The PyYAML minimum is now 6.0.1. PyYAML 6.0 has no Python 3.12 wheels and fails to build from source, so the
   declared minimum could not install on any supported Python.
-
-### Added
-
-- Package metadata: a description, the README as the long description, the MIT licence, and project URLs.
-
 ## 0.1.1
 
 ### Changed
