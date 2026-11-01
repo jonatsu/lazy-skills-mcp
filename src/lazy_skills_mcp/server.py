@@ -17,8 +17,9 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from lazy_skills_mcp.catalog import list_skill_files, load_catalog, manifest_path
+from lazy_skills_mcp.catalog import load_catalog
 from lazy_skills_mcp.ranking import MAX_RESULTS, rank_entries
+from lazy_skills_mcp.skill import list_skill_files, manifest_path
 
 _FIND_SKILLS_TITLE = "Find skills"
 _LOAD_SKILL_TITLE = "Load skill"

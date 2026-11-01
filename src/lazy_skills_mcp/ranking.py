@@ -15,7 +15,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
-from lazy_skills_mcp.catalog import SkillEntry
+from lazy_skills_mcp.skill import SkillEntry
 
 MAX_RESULTS = 10
 _NAME_WEIGHT = 2.0

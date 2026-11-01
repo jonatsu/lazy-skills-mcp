@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from lazy_skills_mcp.catalog import SkillsDirectoryError, list_skill_files, load_catalog
+from lazy_skills_mcp.catalog import SkillsDirectoryError, load_catalog
+from lazy_skills_mcp.skill import list_skill_files
 
 
 def test_a_valid_directory_yields_every_skill_sorted_by_name(skills_dir: Path) -> None:
@@ -182,9 +183,10 @@ def test_a_skill_with_frontmatter_missing_the_description_is_skipped_and_logged(
     assert "incomplete-skill" in caplog.text
 
 
-def test_a_directory_with_no_manifest_file_at_all_is_skipped_and_logged(
+def test_a_folder_without_a_manifest_is_a_silent_group(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """A folder without SKILL.md is a group: searched for skills, never logged."""
     root = tmp_path / "lazy"
     not_a_skill = root / "not-a-skill"
     not_a_skill.mkdir(parents=True)
@@ -199,7 +201,7 @@ def test_a_directory_with_no_manifest_file_at_all_is_skipped_and_logged(
         catalog = load_catalog(root)
 
     assert [entry.name for entry in catalog] == ["good-skill"]
-    assert "not-a-skill" in caplog.text
+    assert caplog.text == ""
 
 
 def test_a_symlink_chain_leaving_the_skill_directory_is_excluded_from_its_files(
@@ -263,47 +265,39 @@ def test_a_symlinked_subdirectory_leaving_the_skill_directory_excludes_its_files
     assert list_skill_files(catalog_entry.directory) == ()
 
 
-def test_a_symlinked_skill_directory_pointing_outside_the_lazy_tier_is_excluded(
+def test_a_symlinked_skill_folder_pointing_outside_the_source_is_served(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A lazy-tier child that is itself a symlink to a directory outside the lazy
-    tier is left out of the catalog and logged, while real skills beside it still
-    serve. Kasetto installs real copies, so such a directory is never part of the tier.
-    """
+    """A skill installed as a symlink to a folder elsewhere is served like a copy, as
+    agents that follow symlinked skill folders load it. Its files are still confined to
+    the skill's real folder."""
     root = tmp_path / "lazy"
     root.mkdir()
-    outside = tmp_path / "outside" / "secret-skill"
-    outside.mkdir(parents=True)
-    (outside / "SKILL.md").write_text(
-        "---\nname: secret-skill\ndescription: not part of the lazy tier\n---\nsecret body\n",
+    store = tmp_path / "store" / "linked-skill"
+    store.mkdir(parents=True)
+    (store / "SKILL.md").write_text(
+        "---\nname: linked-skill\ndescription: installed by symlink\n---\nbody\n",
         encoding="utf-8",
     )
-    (outside / "leaked.txt").write_text("top secret file", encoding="utf-8")
-    (root / "secret-skill").symlink_to(outside)
-    real = root / "real-skill"
-    real.mkdir()
-    (real / "SKILL.md").write_text(
-        "---\nname: real-skill\ndescription: part of the lazy tier\n---\nbody\n",
-        encoding="utf-8",
-    )
+    (store / "notes.md").write_text("kept", encoding="utf-8")
+    (root / "linked-skill").symlink_to(store)
 
     with caplog.at_level(logging.WARNING):
-        catalog = load_catalog(root)
+        (catalog_entry,) = load_catalog(root)
 
-    assert "resolves outside" in caplog.text
-    assert [entry.name for entry in catalog] == ["real-skill"], (
-        "a symlinked skill directory pointing outside the lazy tier must be "
-        "excluded from the catalog, not served"
-    )
+    assert catalog_entry.name == "linked-skill"
+    assert list_skill_files(catalog_entry.directory) == ("notes.md",)
+    assert caplog.text == ""
 
 
 def test_a_scan_never_lists_skill_files(skills_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The scan reads only each SKILL.md; listing a skill's files is load_skill's job."""
+    """The scan reads only each SKILL.md; listing a skill's files is load_skill's job,
+    so a scan that walked a skill's files recursively would fail here."""
 
-    def fail(skill_dir: Path) -> tuple[str, ...]:
-        raise AssertionError(f"scan listed the files of {skill_dir}")
+    def fail(self: Path, pattern: str) -> object:
+        raise AssertionError(f"scan walked the files under {self}")
 
-    monkeypatch.setattr("lazy_skills_mcp.catalog.list_skill_files", fail)
+    monkeypatch.setattr(Path, "rglob", fail)
 
     assert [entry.name for entry in load_catalog(skills_dir)] == [
         "embedded-linux-bringup",
