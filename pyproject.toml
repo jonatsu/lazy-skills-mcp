@@ -60,6 +60,9 @@ ignore = ["E501"]  # line length handled by the formatter
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
+[tool.ruff.lint.isort]
+known-local-folder = ["skill_tree"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
 
@@ -67,3 +70,8 @@ ban-relative-imports = "all"
 python_version = "3.12"
 strict = true
 files = ["src/lazy_skills_mcp", "tests"]
+
+[tool.pyright]
+# Tests import their shared helpers (tests/skill_tree.py) as top-level modules, as
+# pytest's default import mode puts tests/ on sys.path.
+extraPaths = ["src", "tests"]

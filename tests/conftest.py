@@ -7,25 +7,7 @@ from pathlib import Path
 
 import pytest
 
-VALID_SKILL_MD = """\
----
-name: {name}
-description: {description}
----
-
-# {name}
-
-Body text for {name}.
-"""
-
-
-def _write_skill(root: Path, name: str, description: str) -> Path:
-    skill_dir = root / name
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        VALID_SKILL_MD.format(name=name, description=description), encoding="utf-8"
-    )
-    return skill_dir
+from skill_tree import write_skill
 
 
 @pytest.fixture
@@ -38,7 +20,6 @@ def anyio_backend() -> str:
 def skills_dir(tmp_path: Path) -> Path:
     """A directory holding two valid, unrelated skills."""
     root = tmp_path / "lazy"
-    root.mkdir()
-    _write_skill(root, "embedded-linux-bringup", "Bring up a new embedded Linux board")
-    _write_skill(root, "nix-flakes", "Author and debug Nix flakes")
+    write_skill(root / "embedded-linux-bringup", description="Bring up a new embedded Linux board")
+    write_skill(root / "nix-flakes", description="Author and debug Nix flakes")
     return root

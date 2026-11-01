@@ -10,14 +10,7 @@ import pytest
 
 from lazy_skills_mcp.discovery import MAX_DEPTH, discover_skills
 
-
-def _write_skill(skill_dir: Path, description: str = "does a thing") -> Path:
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        f"---\nname: {skill_dir.name}\ndescription: {description}\n---\nbody\n",
-        encoding="utf-8",
-    )
-    return skill_dir
+from skill_tree import write_skill
 
 
 def _names(source: Path) -> list[str]:
@@ -27,18 +20,18 @@ def _names(source: Path) -> list[str]:
 def test_skills_in_nested_groups_are_found_in_sorted_walk_order(tmp_path: Path) -> None:
     """The layout of jonatsu/agent-skills: skills one and two groups deep."""
     source = tmp_path / "agent-skills"
-    _write_skill(source / "development" / "python" / "python-testing")
-    _write_skill(source / "development" / "python" / "python-style")
-    _write_skill(source / "agents" / "ast-grep")
-    _write_skill(source / "development" / "just-task-runner")
+    write_skill(source / "development" / "python" / "python-testing")
+    write_skill(source / "development" / "python" / "python-style")
+    write_skill(source / "agents" / "ast-grep")
+    write_skill(source / "development" / "just-task-runner")
 
     assert _names(source) == ["ast-grep", "just-task-runner", "python-style", "python-testing"]
 
 
 def test_a_skill_is_not_searched_for_further_skills(tmp_path: Path) -> None:
     source = tmp_path / "source"
-    outer = _write_skill(source / "outer")
-    _write_skill(outer / "examples" / "inner")
+    outer = write_skill(source / "outer")
+    write_skill(outer / "examples" / "inner")
 
     assert _names(source) == ["outer"]
 
@@ -50,7 +43,7 @@ def test_an_invalid_skill_is_logged_and_not_searched(
     broken = source / "broken"
     broken.mkdir(parents=True)
     (broken / "SKILL.md").write_text("no frontmatter here\n", encoding="utf-8")
-    _write_skill(broken / "hidden-inside")
+    write_skill(broken / "hidden-inside")
 
     with caplog.at_level(logging.WARNING):
         names = _names(source)
@@ -60,16 +53,16 @@ def test_an_invalid_skill_is_logged_and_not_searched(
 
 
 def test_a_source_that_is_itself_a_skill_serves_that_skill(tmp_path: Path) -> None:
-    skill = _write_skill(tmp_path / "single-skill")
+    skill = write_skill(tmp_path / "single-skill")
 
     assert _names(skill) == ["single-skill"]
 
 
 def test_hidden_folders_are_skipped(tmp_path: Path) -> None:
     source = tmp_path / "source"
-    _write_skill(source / ".git" / "not-served")
-    _write_skill(source / "group" / ".cache" / "not-served-either")
-    _write_skill(source / "served")
+    write_skill(source / ".git" / "not-served")
+    write_skill(source / "group" / ".cache" / "not-served-either")
+    write_skill(source / "served")
 
     assert _names(source) == ["served"]
 
@@ -85,7 +78,7 @@ def _nest(source: Path, levels: int) -> Path:
 def test_a_skill_at_the_depth_limit_is_found(tmp_path: Path) -> None:
     source = tmp_path / "source"
     deepest = _nest(source, MAX_DEPTH - 1) / "deep-skill"
-    _write_skill(deepest)
+    write_skill(deepest)
 
     assert _names(source) == ["deep-skill"]
 
@@ -95,7 +88,7 @@ def test_a_group_at_the_depth_limit_is_not_searched_and_is_logged(
 ) -> None:
     source = tmp_path / "source"
     group_at_limit = _nest(source, MAX_DEPTH)
-    _write_skill(group_at_limit / "too-deep")
+    write_skill(group_at_limit / "too-deep")
 
     with caplog.at_level(logging.WARNING):
         names = _names(source)
@@ -109,7 +102,7 @@ def test_a_symlink_cycle_ends_without_a_log_line(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     source = tmp_path / "source"
-    _write_skill(source / "group" / "real-skill")
+    write_skill(source / "group" / "real-skill")
     (source / "group" / "loop").symlink_to(source)
 
     with caplog.at_level(logging.WARNING):
@@ -121,7 +114,7 @@ def test_a_symlink_cycle_ends_without_a_log_line(
 
 def test_one_real_skill_reached_through_two_paths_appears_once(tmp_path: Path) -> None:
     source = tmp_path / "source"
-    real = _write_skill(source / "a" / "shared-skill")
+    real = write_skill(source / "a" / "shared-skill")
     (source / "b").mkdir()
     (source / "b" / "shared-skill").symlink_to(real)
 
@@ -132,7 +125,7 @@ def test_one_real_skill_reached_through_two_paths_appears_once(tmp_path: Path) -
 
 def test_a_symlinked_group_is_searched(tmp_path: Path) -> None:
     store = tmp_path / "store"
-    _write_skill(store / "stored-skill")
+    write_skill(store / "stored-skill")
     source = tmp_path / "source"
     source.mkdir()
     (source / "linked-group").symlink_to(store)
@@ -145,10 +138,10 @@ def test_the_walk_order_does_not_depend_on_creation_order(tmp_path: Path) -> Non
 
     first = tmp_path / "first"
     for relative in paths:
-        _write_skill(first / relative)
+        write_skill(first / relative)
     second = tmp_path / "second"
     for relative in reversed(paths):
-        _write_skill(second / relative)
+        write_skill(second / relative)
 
     assert _names(first) == _names(second) == ["five", "two", "four", "one"]
 
@@ -159,8 +152,8 @@ def test_an_unreadable_group_is_logged_and_the_scan_continues(
 ) -> None:
     source = tmp_path / "source"
     locked = source / "locked"
-    _write_skill(locked / "hidden-skill")
-    _write_skill(source / "open-skill")
+    write_skill(locked / "hidden-skill")
+    write_skill(source / "open-skill")
     locked.chmod(0o000)
     try:
         with caplog.at_level(logging.WARNING):
@@ -175,7 +168,7 @@ def test_an_unreadable_group_is_logged_and_the_scan_continues(
 def test_a_shorter_path_to_a_group_cut_off_at_the_depth_limit_is_searched(tmp_path: Path) -> None:
     source = tmp_path / "source"
     group_at_limit = _nest(source / "a", MAX_DEPTH - 1)
-    _write_skill(group_at_limit / "deep-skill")
+    write_skill(group_at_limit / "deep-skill")
     (source / "z").symlink_to(group_at_limit)
 
     assert _names(source) == ["deep-skill"]
@@ -188,8 +181,8 @@ def test_a_readable_but_unsearchable_group_is_logged(
     """Mode 0o644, as `chmod -R 644` leaves it: listing works, but no child can be checked."""
     source = tmp_path / "source"
     group = source / "group"
-    _write_skill(group / "skill-a")
-    _write_skill(source / "open-skill")
+    write_skill(group / "skill-a")
+    write_skill(source / "open-skill")
     group.chmod(0o644)
     try:
         with caplog.at_level(logging.WARNING):
@@ -206,9 +199,9 @@ def test_a_child_symlink_with_an_unreachable_target_skips_only_that_child(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     source = tmp_path / "source"
-    _write_skill(source / "group" / "good-skill")
+    write_skill(source / "group" / "good-skill")
     locked = tmp_path / "locked"
-    _write_skill(locked / "behind")
+    write_skill(locked / "behind")
     (source / "group" / "unreachable").symlink_to(locked / "behind")
     locked.chmod(0o000)
     try:

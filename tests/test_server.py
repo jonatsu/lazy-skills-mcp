@@ -11,9 +11,21 @@ import pytest
 from mcp import Client
 from mcp.types import TextContent
 
-from lazy_skills_mcp.server import build_server
+from lazy_skills_mcp.catalog import SkillsDirectoryError
+from lazy_skills_mcp.server import MAX_DESCRIBED_NAMES, build_server
+
+from skill_tree import write_skill
 
 pytestmark = pytest.mark.anyio
+
+
+async def _find_skills_description_for(source: Path) -> str:
+    server = build_server([source])
+    async with Client(server, raise_exceptions=True) as client:
+        tools = await client.list_tools()
+    (find_skills_tool,) = [t for t in tools.tools if t.name == "find_skills"]
+    assert find_skills_tool.description is not None
+    return find_skills_tool.description
 
 
 async def test_find_skills_with_no_query_returns_the_whole_catalog(skills_dir: Path) -> None:
@@ -57,11 +69,8 @@ async def test_find_skills_with_an_empty_string_query_returns_the_whole_catalog(
 async def test_find_skills_returns_each_skill_a_multi_concept_query_touches(
     skills_dir: Path,
 ) -> None:
-    """Each term matches a different skill, and both come back.
-
-    This is the 2026-10-04 Copilot failure: "nix flake python packaging" spans two
-    skills, and the earlier all-terms rule returned neither.
-    """
+    """Each term matches a different skill, and both come back: a query such as
+    "nix flake python packaging" spans two skills, and must not return neither."""
     server = build_server([skills_dir])
     async with Client(server, raise_exceptions=True) as client:
         result = await client.call_tool("find_skills", {"query": "embedded flakes"})
@@ -73,19 +82,9 @@ async def test_find_skills_returns_each_skill_a_multi_concept_query_touches(
 async def test_find_skills_matches_case_insensitively_against_description_content(
     tmp_path: Path,
 ) -> None:
-    """The description itself carries mixed case, not just the query.
-
-    A haystack-casing mutation (dropping `.lower()` on the entry text) survives
-    the existing case-insensitivity test, because every fixture description is
-    already all-lowercase; only the query varies in case there.
-    """
+    """The description's own case is ignored, not only the query's."""
     root = tmp_path / "lazy"
-    skill_dir = root / "my-skill"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: my-skill\ndescription: Handles YOCTO Image Builds\n---\nbody\n",
-        encoding="utf-8",
-    )
+    write_skill(root / "my-skill", description="Handles YOCTO Image Builds")
 
     server = build_server([root])
     async with Client(server, raise_exceptions=True) as client:
@@ -98,23 +97,15 @@ async def test_find_skills_matches_case_insensitively_against_description_conten
 async def test_find_skills_description_embeds_the_alphabetical_catalog(
     skills_dir: Path,
 ) -> None:
-    server = build_server([skills_dir])
-    async with Client(server, raise_exceptions=True) as client:
-        tools = await client.list_tools()
+    description = await _find_skills_description_for(skills_dir)
 
-    (find_skills_tool,) = [t for t in tools.tools if t.name == "find_skills"]
-    assert find_skills_tool.description is not None
-    description = find_skills_tool.description
     assert description.index("embedded-linux-bringup") < description.index("nix-flakes")
 
 
 async def test_load_skill_returns_content_directory_and_files(tmp_path: Path) -> None:
     root = tmp_path / "lazy"
-    skill_dir = root / "my-skill"
-    (skill_dir / "references").mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: my-skill\ndescription: does a thing\n---\nbody text\n", encoding="utf-8"
-    )
+    skill_dir = write_skill(root / "my-skill")
+    (skill_dir / "references").mkdir()
     (skill_dir / "references" / "notes.md").write_text("notes", encoding="utf-8")
 
     server = build_server([root])
@@ -128,13 +119,7 @@ async def test_load_skill_returns_content_directory_and_files(tmp_path: Path) ->
 
 
 async def test_load_skill_returns_the_full_manifest_text_exactly(tmp_path: Path) -> None:
-    """A prefix check alone cannot tell full text apart from a truncated copy.
-
-    A mutation that truncates `content` to its first 20 characters survives
-    `test_load_skill_returns_content_directory_and_files`, because the manifest
-    happens to start with exactly that many matching characters. This test
-    compares against the manifest's own full text instead of a fixed prefix.
-    """
+    """The whole manifest comes back, not a prefix of it."""
     root = tmp_path / "lazy"
     skill_dir = root / "my-skill"
     skill_dir.mkdir(parents=True)
@@ -154,21 +139,8 @@ async def test_load_skill_returns_the_full_manifest_text_exactly(tmp_path: Path)
 async def test_load_skill_returns_an_absolute_directory_even_from_a_relative_skills_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The returned directory must be absolute regardless of how `skills_dir` was
-    given to `build_server`.
-
-    Dropping `.resolve()` on `entry.directory` survives every existing test,
-    because `tmp_path` is already absolute with no symlink components to
-    normalize on this platform. Passing a relative path, after chdir-ing to its
-    parent, is the case where an unresolved relative path would actually surface
-    as a relative `directory` in the tool result.
-    """
-    root = tmp_path / "lazy"
-    skill_dir = root / "my-skill"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: my-skill\ndescription: does a thing\n---\nbody\n", encoding="utf-8"
-    )
+    """A source given as a relative path still yields an absolute directory."""
+    skill_dir = write_skill(tmp_path / "lazy" / "my-skill")
     monkeypatch.chdir(tmp_path)
 
     server = build_server([Path("lazy")])
@@ -236,20 +208,11 @@ async def test_find_skills_description_is_fixed_while_the_catalog_rescans_on_eac
     fixed description must not mention it.
     """
     root = tmp_path / "lazy"
-    first_skill = root / "first-skill"
-    first_skill.mkdir(parents=True)
-    (first_skill / "SKILL.md").write_text(
-        "---\nname: first-skill\ndescription: exists at startup\n---\nbody\n", encoding="utf-8"
-    )
+    write_skill(root / "first-skill", description="exists at startup")
 
     server = build_server([root])
 
-    second_skill = root / "second-skill"
-    second_skill.mkdir(parents=True)
-    (second_skill / "SKILL.md").write_text(
-        "---\nname: second-skill\ndescription: added after startup\n---\nbody\n",
-        encoding="utf-8",
-    )
+    write_skill(root / "second-skill", description="added after startup")
 
     async with Client(server, raise_exceptions=True) as client:
         tools = await client.list_tools()
@@ -269,8 +232,6 @@ async def test_find_skills_description_is_fixed_while_the_catalog_rescans_on_eac
 async def test_building_the_server_with_a_missing_directory_fails_closed(
     tmp_path: Path,
 ) -> None:
-    from lazy_skills_mcp.catalog import SkillsDirectoryError
-
     missing = tmp_path / "does-not-exist"
     with pytest.raises(SkillsDirectoryError, match=str(missing)):
         build_server([missing])
@@ -300,24 +261,16 @@ def test_server_instructions_point_agents_at_find_skills(skills_dir: Path) -> No
     assert "load_skill" in server.instructions
 
 
-def _write(skill_dir: Path) -> None:
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        f"---\nname: {skill_dir.name}\ndescription: about {skill_dir.name}\n---\nbody\n",
-        encoding="utf-8",
-    )
-
-
 async def test_find_skills_serves_the_sources_minus_the_skills_installed_natively(
     tmp_path: Path,
 ) -> None:
-    """The draft's success signal: an empty query returns exactly the source's skills
-    minus those the agent loads natively from its skip folder."""
+    """An empty query returns exactly the source's skills minus those the agent loads
+    natively from its skip folder."""
     source = tmp_path / "agent-skills"
     for relative in ["agents/ast-grep", "development/python/python-style", "embedded/u-boot"]:
-        _write(source / relative)
+        write_skill(source / relative)
     native = tmp_path / "native"
-    _write(native / "ast-grep")
+    write_skill(native / "ast-grep")
 
     server = build_server([source], [native])
     async with Client(server, raise_exceptions=True) as client:
@@ -327,22 +280,19 @@ async def test_find_skills_serves_the_sources_minus_the_skills_installed_nativel
     assert names == ["python-style", "u-boot"]
 
 
-async def _find_skills_description_for(source: Path) -> str:
-    server = build_server([source])
-    async with Client(server, raise_exceptions=True) as client:
-        tools = await client.list_tools()
-    (find_skills_tool,) = [t for t in tools.tools if t.name == "find_skills"]
-    assert find_skills_tool.description is not None
-    return find_skills_tool.description
-
-
-@pytest.mark.parametrize(("count", "listed", "more"), [(300, 300, None), (301, 300, 1)])
-async def test_find_skills_description_lists_at_most_300_names(
+@pytest.mark.parametrize(
+    ("count", "listed", "more"),
+    [
+        (MAX_DESCRIBED_NAMES, MAX_DESCRIBED_NAMES, None),
+        (MAX_DESCRIBED_NAMES + 1, MAX_DESCRIBED_NAMES, 1),
+    ],
+)
+async def test_find_skills_description_lists_a_bounded_number_of_names(
     tmp_path: Path, count: int, listed: int, more: int | None
 ) -> None:
     source = tmp_path / "many"
     for index in range(count):
-        _write(source / f"skill-{index:04d}")
+        write_skill(source / f"skill-{index:04d}")
 
     description = await _find_skills_description_for(source)
 
@@ -352,7 +302,7 @@ async def test_find_skills_description_lists_at_most_300_names(
         assert "more" not in description
     else:
         assert f"and {more} more" in description
-        assert "skill-0300" not in description
+        assert f"skill-{MAX_DESCRIBED_NAMES:04d}" not in description
 
 
 @pytest.mark.parametrize("tool_name", ["find_skills", "load_skill"])
@@ -360,7 +310,7 @@ async def test_a_source_that_disappears_mid_session_is_named_in_the_tool_error(
     tmp_path: Path, tool_name: str
 ) -> None:
     source = tmp_path / "source"
-    _write(source / "my-skill")
+    write_skill(source / "my-skill")
     server = build_server([source])
     shutil.rmtree(source)
 

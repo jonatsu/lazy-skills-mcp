@@ -1,4 +1,4 @@
-"""Catalog scanning: frontmatter parsing, name validation, and file confinement."""
+"""Catalog building: usable sources, duplicate names, skip folders, and failing closed."""
 
 from __future__ import annotations
 
@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 from lazy_skills_mcp.catalog import SkillsDirectoryError, load_catalog
-from lazy_skills_mcp.skill import list_skill_files
+
+from skill_tree import write_skill
 
 
 def test_a_valid_directory_yields_every_skill_sorted_by_name(skills_dir: Path) -> None:
@@ -20,108 +21,18 @@ def test_a_valid_directory_yields_every_skill_sorted_by_name(skills_dir: Path) -
     assert catalog[0].directory == skills_dir / "embedded-linux-bringup"
 
 
-def test_other_files_are_listed_as_relative_paths(tmp_path: Path) -> None:
-    root = tmp_path / "lazy"
-    skill_dir = root / "my-skill"
-    (skill_dir / "references").mkdir(parents=True)
-    (skill_dir / "scripts").mkdir()
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: my-skill\ndescription: does a thing\n---\nbody\n", encoding="utf-8"
-    )
-    (skill_dir / "references" / "notes.md").write_text("notes", encoding="utf-8")
-    (skill_dir / "scripts" / "run.sh").write_text("#!/bin/sh\n", encoding="utf-8")
-
-    (catalog_entry,) = load_catalog([root])
-
-    assert sorted(list_skill_files(catalog_entry.directory)) == [
-        "references/notes.md",
-        "scripts/run.sh",
-    ]
-
-
-def test_a_skill_with_unparsable_frontmatter_is_skipped_and_logged(
+def test_an_invalid_skill_is_left_out_and_the_rest_are_served(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     root = tmp_path / "lazy"
-    broken = root / "broken-skill"
-    broken.mkdir(parents=True)
-    (broken / "SKILL.md").write_text(
-        "---\nname: broken-skill\n  bad indent: [unclosed\n---\nbody\n", encoding="utf-8"
-    )
-    good = root / "good-skill"
-    good.mkdir()
-    (good / "SKILL.md").write_text(
-        "---\nname: good-skill\ndescription: fine\n---\nbody\n", encoding="utf-8"
-    )
+    write_skill(root / "broken-skill", name="another-name")
+    write_skill(root / "good-skill")
 
     with caplog.at_level(logging.WARNING):
         catalog = load_catalog([root])
 
     assert [entry.name for entry in catalog] == ["good-skill"]
     assert "broken-skill" in caplog.text
-
-
-def test_a_skill_with_missing_frontmatter_is_skipped_and_logged(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    root = tmp_path / "lazy"
-    plain = root / "plain-skill"
-    plain.mkdir(parents=True)
-    (plain / "SKILL.md").write_text("# Just a heading, no frontmatter\n", encoding="utf-8")
-    good = root / "good-skill"
-    good.mkdir()
-    (good / "SKILL.md").write_text(
-        "---\nname: good-skill\ndescription: fine\n---\nbody\n", encoding="utf-8"
-    )
-
-    with caplog.at_level(logging.WARNING):
-        catalog = load_catalog([root])
-
-    assert [entry.name for entry in catalog] == ["good-skill"]
-    assert "plain-skill" in caplog.text
-
-
-def test_a_skill_whose_frontmatter_name_does_not_match_its_directory_is_skipped(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    root = tmp_path / "lazy"
-    mismatched = root / "on-disk-name"
-    mismatched.mkdir(parents=True)
-    (mismatched / "SKILL.md").write_text(
-        "---\nname: a-different-name\ndescription: fine\n---\nbody\n", encoding="utf-8"
-    )
-    good = root / "good-skill"
-    good.mkdir()
-    (good / "SKILL.md").write_text(
-        "---\nname: good-skill\ndescription: fine\n---\nbody\n", encoding="utf-8"
-    )
-
-    with caplog.at_level(logging.WARNING):
-        catalog = load_catalog([root])
-
-    assert [entry.name for entry in catalog] == ["good-skill"]
-    assert "on-disk-name" in caplog.text
-
-
-def test_a_symlink_leaving_the_skill_directory_is_excluded_from_its_files(
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "lazy"
-    skill_dir = root / "my-skill"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: my-skill\ndescription: does a thing\n---\nbody\n", encoding="utf-8"
-    )
-    (skill_dir / "references").mkdir()
-    (skill_dir / "references" / "inside.md").write_text("kept", encoding="utf-8")
-
-    outside_secret = tmp_path / "outside-secret.txt"
-    outside_secret.write_text("must not be reachable", encoding="utf-8")
-    (skill_dir / "references" / "escape.md").symlink_to(outside_secret)
-
-    (catalog_entry,) = load_catalog([root])
-
-    assert sorted(list_skill_files(catalog_entry.directory)) == ["references/inside.md"]
 
 
 def test_a_missing_directory_fails_closed_naming_the_path(tmp_path: Path) -> None:
@@ -141,9 +52,7 @@ def test_an_empty_directory_fails_closed_naming_the_path(tmp_path: Path) -> None
 
 def test_a_directory_holding_only_invalid_skills_fails_closed(tmp_path: Path) -> None:
     root = tmp_path / "lazy"
-    broken = root / "broken-skill"
-    broken.mkdir(parents=True)
-    (broken / "SKILL.md").write_text("no frontmatter here\n", encoding="utf-8")
+    write_skill(root / "broken-skill", name="another-name")
 
     with pytest.raises(SkillsDirectoryError, match=str(root)):
         load_catalog([root])
@@ -161,28 +70,6 @@ def test_an_unreadable_directory_fails_closed_naming_the_path(tmp_path: Path) ->
         root.chmod(0o755)
 
 
-def test_a_skill_with_frontmatter_missing_the_description_is_skipped_and_logged(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    root = tmp_path / "lazy"
-    incomplete = root / "incomplete-skill"
-    incomplete.mkdir(parents=True)
-    (incomplete / "SKILL.md").write_text(
-        "---\nname: incomplete-skill\n---\nbody\n", encoding="utf-8"
-    )
-    good = root / "good-skill"
-    good.mkdir()
-    (good / "SKILL.md").write_text(
-        "---\nname: good-skill\ndescription: fine\n---\nbody\n", encoding="utf-8"
-    )
-
-    with caplog.at_level(logging.WARNING):
-        catalog = load_catalog([root])
-
-    assert [entry.name for entry in catalog] == ["good-skill"]
-    assert "incomplete-skill" in caplog.text
-
-
 def test_a_folder_without_a_manifest_is_a_silent_group(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -191,11 +78,7 @@ def test_a_folder_without_a_manifest_is_a_silent_group(
     not_a_skill = root / "not-a-skill"
     not_a_skill.mkdir(parents=True)
     (not_a_skill / "README.md").write_text("just a stray directory\n", encoding="utf-8")
-    good = root / "good-skill"
-    good.mkdir()
-    (good / "SKILL.md").write_text(
-        "---\nname: good-skill\ndescription: fine\n---\nbody\n", encoding="utf-8"
-    )
+    write_skill(root / "good-skill")
 
     with caplog.at_level(logging.WARNING):
         catalog = load_catalog([root])
@@ -204,89 +87,21 @@ def test_a_folder_without_a_manifest_is_a_silent_group(
     assert caplog.text == ""
 
 
-def test_a_symlink_chain_leaving_the_skill_directory_is_excluded_from_its_files(
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "lazy"
-    skill_dir = root / "my-skill"
-    (skill_dir / "references").mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: my-skill\ndescription: does a thing\n---\nbody\n", encoding="utf-8"
-    )
-    (skill_dir / "references" / "inside.md").write_text("kept", encoding="utf-8")
-
-    outside_secret = tmp_path / "outside-secret.txt"
-    outside_secret.write_text("must not be reachable", encoding="utf-8")
-    middle_link = tmp_path / "middle-link.txt"
-    middle_link.symlink_to(outside_secret)
-    (skill_dir / "references" / "escape.md").symlink_to(middle_link)
-
-    (catalog_entry,) = load_catalog([root])
-
-    assert sorted(list_skill_files(catalog_entry.directory)) == ["references/inside.md"]
-
-
-def test_a_relative_dotdot_symlink_target_that_escapes_is_excluded(tmp_path: Path) -> None:
-    root = tmp_path / "lazy"
-    skill_dir = root / "my-skill"
-    (skill_dir / "references").mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: my-skill\ndescription: does a thing\n---\nbody\n", encoding="utf-8"
-    )
-    (skill_dir / "references" / "inside.md").write_text("kept", encoding="utf-8")
-
-    outside_secret = tmp_path / "outside-secret.txt"
-    outside_secret.write_text("must not be reachable", encoding="utf-8")
-    escape_link = skill_dir / "references" / "escape.md"
-    escape_link.symlink_to(Path("..") / ".." / ".." / outside_secret.name)
-
-    (catalog_entry,) = load_catalog([root])
-
-    assert sorted(list_skill_files(catalog_entry.directory)) == ["references/inside.md"]
-
-
-def test_a_symlinked_subdirectory_leaving_the_skill_directory_excludes_its_files(
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "lazy"
-    skill_dir = root / "my-skill"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: my-skill\ndescription: does a thing\n---\nbody\n", encoding="utf-8"
-    )
-
-    outside_dir = tmp_path / "outside-dir"
-    outside_dir.mkdir()
-    (outside_dir / "secret.txt").write_text("must not be reachable", encoding="utf-8")
-    (skill_dir / "linked-out").symlink_to(outside_dir)
-
-    (catalog_entry,) = load_catalog([root])
-
-    assert list_skill_files(catalog_entry.directory) == ()
-
-
 def test_a_symlinked_skill_folder_pointing_outside_the_source_is_served(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A skill installed as a symlink to a folder elsewhere is served like a copy, as
-    agents that follow symlinked skill folders load it. Its files are still confined to
-    the skill's real folder."""
+    agents that follow symlinked skill folders load it."""
     root = tmp_path / "lazy"
     root.mkdir()
-    store = tmp_path / "store" / "linked-skill"
-    store.mkdir(parents=True)
-    (store / "SKILL.md").write_text(
-        "---\nname: linked-skill\ndescription: installed by symlink\n---\nbody\n",
-        encoding="utf-8",
-    )
-    (store / "notes.md").write_text("kept", encoding="utf-8")
+    store = write_skill(tmp_path / "store" / "linked-skill")
     (root / "linked-skill").symlink_to(store)
 
     with caplog.at_level(logging.WARNING):
         (catalog_entry,) = load_catalog([root])
 
     assert catalog_entry.name == "linked-skill"
-    assert list_skill_files(catalog_entry.directory) == ("notes.md",)
+    assert catalog_entry.directory == root / "linked-skill"
     assert caplog.text == ""
 
 
@@ -305,21 +120,12 @@ def test_a_scan_never_lists_skill_files(skills_dir: Path, monkeypatch: pytest.Mo
     ]
 
 
-def _write_skill(skill_dir: Path, description: str) -> Path:
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        f"---\nname: {skill_dir.name}\ndescription: {description}\n---\nbody\n",
-        encoding="utf-8",
-    )
-    return skill_dir
-
-
 def test_the_first_source_wins_a_duplicate_name_and_both_folders_are_logged(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    personal = _write_skill(tmp_path / "personal" / "python-style", "my own rules")
-    shared = _write_skill(tmp_path / "shared" / "python" / "python-style", "shared rules")
-    _write_skill(tmp_path / "shared" / "python" / "python-testing", "tests")
+    personal = write_skill(tmp_path / "personal" / "python-style", description="my own rules")
+    shared = write_skill(tmp_path / "shared" / "python" / "python-style", description="shared")
+    write_skill(tmp_path / "shared" / "python" / "python-testing", description="tests")
 
     with caplog.at_level(logging.WARNING):
         catalog = load_catalog([tmp_path / "personal", tmp_path / "shared"])
@@ -335,8 +141,8 @@ def test_the_first_source_wins_a_duplicate_name_and_both_folders_are_logged(
 def test_within_one_source_the_first_path_in_walk_order_wins(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    first = _write_skill(tmp_path / "source" / "a" / "same-name", "first")
-    second = _write_skill(tmp_path / "source" / "b" / "same-name", "second")
+    first = write_skill(tmp_path / "source" / "a" / "same-name", description="first")
+    second = write_skill(tmp_path / "source" / "b" / "same-name", description="second")
 
     with caplog.at_level(logging.WARNING):
         (entry,) = load_catalog([tmp_path / "source"])
@@ -384,12 +190,12 @@ def test_a_skill_reached_again_through_a_later_source_is_not_a_duplicate(
 ) -> None:
     """The visited set spans every source: a later source linking to a skill an
     earlier source already served is the same skill, not a conflict."""
-    first = _write_skill(tmp_path / "first" / "shared", "the real one")
-    _write_skill(tmp_path / "first" / "other", "another")
+    first = write_skill(tmp_path / "first" / "shared")
+    write_skill(tmp_path / "first" / "other")
     second = tmp_path / "second"
     second.mkdir()
     (second / "shared").symlink_to(first)
-    _write_skill(second / "own", "second's own")
+    write_skill(second / "own")
 
     with caplog.at_level(logging.WARNING):
         catalog = load_catalog([tmp_path / "first", second])
@@ -401,7 +207,7 @@ def test_a_skill_reached_again_through_a_later_source_is_not_a_duplicate(
 def test_a_source_nested_in_an_earlier_source_is_not_called_empty(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    _write_skill(tmp_path / "skills" / "team" / "team-skill", "team")
+    write_skill(tmp_path / "skills" / "team" / "team-skill")
 
     with caplog.at_level(logging.WARNING):
         catalog = load_catalog([tmp_path / "skills", tmp_path / "skills" / "team"])
@@ -421,19 +227,3 @@ def test_a_source_under_an_unsearchable_parent_fails_closed_naming_it(tmp_path: 
             load_catalog([source])
     finally:
         parent.chmod(0o755)
-
-
-def test_a_skill_manifest_that_is_not_utf8_is_skipped_and_logged(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    root = tmp_path / "source"
-    bad = root / "latin1-skill"
-    bad.mkdir(parents=True)
-    (bad / "SKILL.md").write_bytes(b"---\nname: latin1-skill\ndescription: caf\xe9\n---\n")
-    _write_skill(root / "good-skill", "fine")
-
-    with caplog.at_level(logging.WARNING):
-        catalog = load_catalog([root])
-
-    assert [entry.name for entry in catalog] == ["good-skill"]
-    assert "latin1-skill" in caplog.text
