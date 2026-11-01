@@ -229,9 +229,9 @@ release is proposed to the user.
 
 | Unit | Result | Commit | Notes |
 | --- | --- | --- | --- |
-| Baseline | | | |
-| 1 | | | |
-| 2 | | | |
+| Baseline | `just test` 58 passed; `just check` clean; `just test-all-pythons` 58 passed on 3.12, 3.13, 3.14 | `8c9d46e` | |
+| 1 | Done: 59 passed, `just check` clean; self-reviewed | `6144a5d` | New test fails the scan if it lists skill files |
+| 2 | Paused mid-unit, 2026-11-01 | none yet | Untracked drafts `src/lazy_skills_mcp/skill.py` (SkillEntry, read_skill, frontmatter, list_skill_files moved out of catalog.py) and `discovery.py` (the walk). Next: make `catalog.py` use them and drop `_is_confined`, repoint imports in `ranking.py`, `server.py` and tests, rewrite the two 0.1.1-behaviour tests, add the discovery tests |
 | 3 | | | |
 | 4 | | | |
 | 5 | | | |
