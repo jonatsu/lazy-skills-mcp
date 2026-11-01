@@ -231,9 +231,9 @@ release is proposed to the user.
 | --- | --- | --- | --- |
 | Baseline | `just test` 58 passed; `just check` clean; `just test-all-pythons` 58 passed on 3.12, 3.13, 3.14 | `8c9d46e` | |
 | 1 | Done: 59 passed, `just check` clean; self-reviewed | `6144a5d` | New test fails the scan if it lists skill files |
-| 2 | Paused mid-unit, 2026-11-01 | none yet | Untracked drafts `src/lazy_skills_mcp/skill.py` (SkillEntry, read_skill, frontmatter, list_skill_files moved out of catalog.py) and `discovery.py` (the walk). Next: make `catalog.py` use them and drop `_is_confined`, repoint imports in `ranking.py`, `server.py` and tests, rewrite the two 0.1.1-behaviour tests, add the discovery tests |
-| 3 | | | |
-| 4 | | | |
-| 5 | | | |
+| 2 | Done: 70 passed, hooks clean; self-reviewed | `9e0db29` | Scan test now patches `Path.rglob`, which any file listing must call; the earlier patch target was never called by the scan |
+| 3 | Done: 84 passed, hooks clean; self-reviewed | `e65271d` | `build_server` and `load_catalog` take path sequences rather than a `SkillSources` value, which kept test churn small |
+| 4 | Done: 91 passed on 3.12, 3.13 and 3.14; P3 review of units 2 to 4 in progress | `0a17bb3`, `7682a90` | `7682a90` formats `installed.py`, which `just check` skipped while it was untracked |
+| 5 | Done: 93 passed, hooks clean; self-reviewed | `a20b539` | |
 | 6 | | | |
 | Final | | | |
