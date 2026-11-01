@@ -8,7 +8,7 @@ test *args:
 
 # Run every pre-commit hook over the whole tree. *args forwards to `pre-commit run` (e.g. a hook id).
 check *args:
-    pre-commit run --all-files {{ args }}
+    uv run --locked pre-commit run --all-files {{ args }}
 
 # Run the test suite on every supported Python, from the 3.12 minimum up. *args forwards to pytest.
 test-all-pythons *args:
