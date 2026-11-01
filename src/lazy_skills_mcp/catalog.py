@@ -70,9 +70,10 @@ def load_catalog(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> tup
 
 def _first_skill_per_name(sources: Sequence[Path]) -> list[SkillEntry]:
     """Discover every source in order and keep the first skill under each name."""
-    visited: set[Path] = set()
+    visited: dict[Path, int] = {}
     kept: dict[str, SkillEntry] = {}
     for source in sources:
+        reached_before = source.resolve() in visited
         found_any = False
         for entry in discover_skills(source, visited):
             found_any = True
@@ -86,16 +87,16 @@ def _first_skill_per_name(sources: Sequence[Path]) -> list[SkillEntry]:
                     entry.name,
                     first.directory,
                 )
-        if not found_any and len(sources) > 1:
+        if not found_any and not reached_before and len(sources) > 1:
             logger.warning("skills source holds no valid skill: %s", source)
     return list(kept.values())
 
 
 def _require_usable_source(source: Path) -> None:
     """Raise unless `source` is a folder the server can list."""
-    if not source.is_dir():
-        raise SkillsDirectoryError(f"skills source not found: {source}")
     try:
+        if not source.is_dir():
+            raise SkillsDirectoryError(f"skills source not found: {source}")
         _ = next(source.iterdir(), None)
     except OSError as exc:
         raise SkillsDirectoryError(f"skills source unreadable: {source} ({exc})") from exc

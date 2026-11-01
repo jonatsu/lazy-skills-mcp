@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -90,3 +91,21 @@ def test_a_duplicate_is_reported_even_when_its_name_is_installed(
     assert [entry.name for entry in catalog] == ["kept"]
     assert str(first) in caplog.text
     assert str(second) in caplog.text
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permission bits")
+def test_a_skip_folder_under_an_unsearchable_parent_counts_as_empty_and_is_logged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    parent = tmp_path / "parent"
+    skip_dir = parent / "native"
+    skip_dir.mkdir(parents=True)
+    parent.chmod(0o000)
+    try:
+        with caplog.at_level(logging.WARNING):
+            names = installed_names([skip_dir])
+    finally:
+        parent.chmod(0o755)
+
+    assert names == frozenset()
+    assert str(skip_dir) in caplog.text

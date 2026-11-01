@@ -34,9 +34,28 @@ def manifest_path(skill_dir: Path) -> Path:
     return skill_dir / SKILL_MANIFEST_NAME
 
 
+def is_folder(path: Path) -> bool:
+    """Whether `path` is a folder, treating any filesystem error as "no".
+
+    `Path.is_dir` raises on Python 3.12 and 3.13 when a parent cannot be searched, so
+    callers that must log and continue use this instead.
+    """
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
 def is_skill_folder(folder: Path) -> bool:
-    """Whether `folder` holds a `SKILL.md` file, which makes it a skill rather than a group."""
-    return manifest_path(folder).is_file()
+    """Whether `folder` holds a `SKILL.md` file, which makes it a skill rather than a group.
+
+    A folder whose contents cannot be checked counts as a group, so the caller's attempt
+    to list it reports the error.
+    """
+    try:
+        return manifest_path(folder).is_file()
+    except OSError:
+        return False
 
 
 def read_skill(skill_dir: Path) -> SkillEntry | None:

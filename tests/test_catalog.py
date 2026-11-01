@@ -377,3 +377,47 @@ def test_no_valid_skill_in_any_source_fails_closed_naming_them(tmp_path: Path) -
 
     assert str(first) in str(excinfo.value)
     assert str(second) in str(excinfo.value)
+
+
+def test_a_skill_reached_again_through_a_later_source_is_not_a_duplicate(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The visited set spans every source: a later source linking to a skill an
+    earlier source already served is the same skill, not a conflict."""
+    first = _write_skill(tmp_path / "first" / "shared", "the real one")
+    _write_skill(tmp_path / "first" / "other", "another")
+    second = tmp_path / "second"
+    second.mkdir()
+    (second / "shared").symlink_to(first)
+    _write_skill(second / "own", "second's own")
+
+    with caplog.at_level(logging.WARNING):
+        catalog = load_catalog([tmp_path / "first", second])
+
+    assert [entry.name for entry in catalog] == ["other", "own", "shared"]
+    assert caplog.text == ""
+
+
+def test_a_source_nested_in_an_earlier_source_is_not_called_empty(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _write_skill(tmp_path / "skills" / "team" / "team-skill", "team")
+
+    with caplog.at_level(logging.WARNING):
+        catalog = load_catalog([tmp_path / "skills", tmp_path / "skills" / "team"])
+
+    assert [entry.name for entry in catalog] == ["team-skill"]
+    assert caplog.text == ""
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permission bits")
+def test_a_source_under_an_unsearchable_parent_fails_closed_naming_it(tmp_path: Path) -> None:
+    parent = tmp_path / "parent"
+    source = parent / "skills"
+    source.mkdir(parents=True)
+    parent.chmod(0o000)
+    try:
+        with pytest.raises(SkillsDirectoryError, match=str(source)):
+            load_catalog([source])
+    finally:
+        parent.chmod(0o755)

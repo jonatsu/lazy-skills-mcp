@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,7 @@ def _write_skill(skill_dir: Path, description: str = "does a thing") -> Path:
 
 
 def _names(source: Path) -> list[str]:
-    return [entry.name for entry in discover_skills(source, set())]
+    return [entry.name for entry in discover_skills(source, {})]
 
 
 def test_skills_in_nested_groups_are_found_in_sorted_walk_order(tmp_path: Path) -> None:
@@ -124,7 +125,7 @@ def test_one_real_skill_reached_through_two_paths_appears_once(tmp_path: Path) -
     (source / "b").mkdir()
     (source / "b" / "shared-skill").symlink_to(real)
 
-    entries = list(discover_skills(source, set()))
+    entries = list(discover_skills(source, {}))
 
     assert [entry.directory for entry in entries] == [real]
 
@@ -150,3 +151,31 @@ def test_the_walk_order_does_not_depend_on_creation_order(tmp_path: Path) -> Non
         _write_skill(second / relative)
 
     assert _names(first) == _names(second) == ["five", "two", "four", "one"]
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permission bits")
+def test_an_unreadable_group_is_logged_and_the_scan_continues(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    source = tmp_path / "source"
+    locked = source / "locked"
+    _write_skill(locked / "hidden-skill")
+    _write_skill(source / "open-skill")
+    locked.chmod(0o000)
+    try:
+        with caplog.at_level(logging.WARNING):
+            names = _names(source)
+    finally:
+        locked.chmod(0o755)
+
+    assert names == ["open-skill"]
+    assert str(locked) in caplog.text
+
+
+def test_a_shorter_path_to_a_group_cut_off_at_the_depth_limit_is_searched(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    group_at_limit = _nest(source / "a", MAX_DEPTH - 1)
+    _write_skill(group_at_limit / "deep-skill")
+    (source / "z").symlink_to(group_at_limit)
+
+    assert _names(source) == ["deep-skill"]
