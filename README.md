@@ -220,14 +220,19 @@ All diagnostics go to stderr, since stdout carries the MCP protocol.
 Deployments pin a commit of this repository and script against the interface below. A change to any part of it
 breaks them at their next pin bump, so treat it as a breaking change and say so in the commit message.
 
-- The console command `lazy-skills-mcp`.
+- The console command `lazy-skills-mcp`, and its exit status 1 with a message on stderr when it cannot serve any
+  skill at startup.
 - Its repeatable `--skills-dir DIR` and `--skip-installed-in DIR` flags, and `--print-skills-dir`, which prints the
   resolved sources on stdout, one path per line.
 - The `LAZY_SKILLS_MCP_SKILLS_DIR` environment variable, its `PATH`-style list form, and the resolution order above.
+- The expansion of a leading `~` in every path the flags and the variable give.
 - The default source, `$XDG_DATA_HOME/lazy-skills-mcp/skills`, else `~/.local/share/lazy-skills-mcp/skills`.
-- The layout rule: a folder holding `SKILL.md` is a skill, any other folder is a group, up to 8 levels deep.
+- The layout rule: a folder holding `SKILL.md` is a skill, any other folder is a group, searched at least 8 levels
+  deep.
+- The duplicate rule: the first skill found under a name is served, by source order and then walk order.
 - The skip rule: a skill whose folder name or frontmatter `name` appears in a skip folder is not served.
-- The tool names `find_skills` and `load_skill`.
+- The tool names `find_skills` and `load_skill`, their arguments `query` and `name`, and their result fields:
+  `skills` with each skill's `name` and `description`, and `content`, `directory` and `files`.
 
 ## When an Agent Never Calls `find_skills`
 

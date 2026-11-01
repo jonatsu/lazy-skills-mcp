@@ -25,3 +25,22 @@ on it.
   folders differ per agent, and a variable set in a shell profile reaches every agent started from that shell. Add it
   if a client cannot pass arguments, or if one machine-wide setting suits an agent family that all reads
   `~/.agents/skills`.
+
+- **A scan object owned by discovery.** The catalog builder creates the map of visited real paths, discovery fills
+  it, and the catalog reads it back to decide whether a source counts as empty. A small object in `discovery.py`
+  that walks a source and answers whether a source was already reached would keep that format private. Make it the
+  first step of the configuration file or group listing, since per-source filters change exactly this seam.
+
+## Scan Cost and Logging
+
+- **A log line for a slow scan, then a frontmatter cache.** Every tool call rescans every source and skip folder and
+  parses each `SKILL.md`, so the cost grows with the collection and shows up only as agent latency. First, log one
+  line with folder count, skill count, and elapsed time when a scan passes a threshold. If a real collection is slow,
+  cache parsed frontmatter keyed on real path, `mtime_ns`, and size, which keeps changes visible at the next call.
+  The 97-skill `jonatsu/agent-skills` checkout scans without a noticeable delay, so neither is needed yet.
+
+- **Warnings logged once per process.** Each scan repeats the warnings for problems that persist, so a find and a
+  load log each one twice. A group first reached at the depth limit through a long path also logs "not searching"
+  even when a shorter path searches it later in the same walk. A process-lifetime set of emitted messages would
+  silence the repeats; the false depth warning needs the walk to defer that warning until the scan ends. Do this if
+  log noise becomes a complaint.
