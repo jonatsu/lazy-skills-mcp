@@ -1,6 +1,7 @@
 # Skill Sources Implementation Plan
 
-Status: proposed, 2026-11-01.\
+Status: executed, 2026-11-01; units 1 to 6 landed, final integration open until the reviews close and the tag
+is authorized.\
 Basis: the accepted [skill sources design](skill-sources-design.md) at commit `4f9d7aa`, realizing the decisions in
 [the draft](skill-sources-draft.md). Section references below are to the design.\
 Execution record: [the section at the end of this plan](#execution-record).
@@ -124,7 +125,8 @@ Replace `resolve_skills_dir` in `src/lazy_skills_mcp/location.py` with a pure fu
 value: the ordered sources and the skip folders, with a leading `~` expanded. `--skills-dir` and `--skip-installed-in`
 become repeatable in `src/lazy_skills_mcp/cli.py`; `--print-skills-dir` prints one source per line. The catalog builder
 runs discovery over every source in order, drops later duplicates with a warning naming both folders, and fails closed
-on any missing, non-folder or unreadable source. `build_server` takes the `SkillSources` value. This unit parses
+on any missing, non-folder or unreadable source. `build_server` takes the source paths (and, from unit 4, the skip
+paths) rather than a `SkillSources` value, as recorded in the execution record. This unit parses
 `--skip-installed-in` but leaves skipping to unit 4.
 
 ### Dependencies and Constraints
@@ -233,7 +235,7 @@ release is proposed to the user.
 | 1 | Done: 59 passed, `just check` clean; self-reviewed | `6144a5d` | New test fails the scan if it lists skill files |
 | 2 | Done: 70 passed, hooks clean; self-reviewed | `9e0db29` | Scan test now patches `Path.rglob`, which any file listing must call; the earlier patch target was never called by the scan |
 | 3 | Done: 84 passed, hooks clean; self-reviewed | `e65271d` | `build_server` and `load_catalog` take path sequences rather than a `SkillSources` value, which kept test churn small |
-| 4 | Done: 91 passed on 3.12, 3.13 and 3.14; P3 review of units 2 to 4 in progress | `0a17bb3`, `7682a90` | `7682a90` formats `installed.py`, which `just check` skipped while it was untracked |
+| 4 | Done: 91 passed on 3.12, 3.13 and 3.14. P3 review closed: four findings (unreadable folders crash the scan on 3.12 and 3.13; a depth-limited group hides a shorter path; a misleading warning for nested sources; two untested guarantees) fixed in `558585d` with the design amended in `e76d0ed`; the recheck found a silent drop of unsearchable folders, fixed in `5abe1f3` | `0a17bb3`, `7682a90` | `7682a90` formats `installed.py`, which `just check` skipped while it was untracked |
 | 5 | Done: 93 passed, hooks clean; self-reviewed | `a20b539` | |
-| 6 | | | |
-| Final | | | |
+| 6 | Done: README, help text, docstrings, CHANGELOG and version 0.2.0; README commands run against fixture trees and their output matched (`--print-skills-dir`, the not-found and all-skipped errors) | `5fbec13`, `e46e766`, `ce83763` | |
+| Final | In progress: CI passed on `e46e766`; real `jonatsu/agent-skills` checkout (97 skills) with `--skip-installed-in ~/.codex/skills` (33 names) served exactly the 65 expected, no warnings. Final code review approved with one required fix; conformance review found two defects, a test gap and doc items; all fixed in `22bc4a7` and `ce83763`. Open: clean-code and architecture reviews (proposed to the user), the `v0.2.0` tag (needs authorization) | | |
