@@ -135,10 +135,13 @@ Discovery is a depth-first walk from the source folder, which is depth 0.
   start with `.`. A group yields no log line, whether or not it holds skills.
 - Depth: A folder at depth 8 is visited, so a skill there is found. A group at depth 8 is not descended; discovery
   logs one warning naming it.
-- Symlinks: A symlinked folder is visited like any other. Discovery keeps the set of real paths it has visited,
-  across all sources in one scan. A folder whose real path is already in the set is passed over without a log line:
-  it is the same skill or group reached again, so nothing is lost, and a cycle ends.
-- Unreadable folders: A group or skill folder that cannot be listed or read is logged and passed over.
+- Symlinks: A symlinked folder is visited like any other. Discovery records each real path it visits, across all
+  sources in one scan, with the shallowest depth at which it was reached. A skill folder already recorded is passed
+  over without a log line. A group already reached at the same or a shallower depth is passed over too; a group
+  reached again by a shorter path is searched again, so the depth limit never hides a skill that a shorter path
+  reaches. Nothing is lost, and a cycle ends.
+- Unreadable folders: A group or skill folder that cannot be listed or read is logged and passed over. A filesystem
+  error while checking whether a folder holds `SKILL.md` counts as "no", so the listing that follows reports it.
 
 The source folder itself follows the fail-closed rule in section 8.3.
 
