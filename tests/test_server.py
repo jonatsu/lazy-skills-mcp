@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -11,6 +12,7 @@ import pytest
 from mcp import Client
 from mcp.types import TextContent
 
+from lazy_skills_mcp import server as server_module
 from lazy_skills_mcp.catalog import SkillsDirectoryError
 from lazy_skills_mcp.server import MAX_DESCRIBED_NAMES, build_server
 
@@ -322,3 +324,42 @@ async def test_a_source_that_disappears_mid_session_is_named_in_the_tool_error(
     (content,) = result.content
     assert isinstance(content, TextContent)
     assert str(source) in content.text
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permission bits")
+async def test_load_skill_leaves_out_files_it_cannot_check(tmp_path: Path) -> None:
+    """Mode 0o644 on a subfolder lets it be listed but not searched."""
+    skill_dir = write_skill(tmp_path / "source" / "my-skill")
+    (skill_dir / "notes.md").write_text("kept", encoding="utf-8")
+    locked = skill_dir / "locked"
+    locked.mkdir()
+    (locked / "hidden.md").write_text("cannot be checked", encoding="utf-8")
+    locked.chmod(0o644)
+    try:
+        server = build_server([tmp_path / "source"])
+        async with Client(server, raise_exceptions=True) as client:
+            result = await client.call_tool("load_skill", {"name": "my-skill"})
+    finally:
+        locked.chmod(0o755)
+
+    assert result.is_error is not True
+    assert result.structured_content["files"] == ["notes.md"]
+
+
+async def test_a_skill_that_cannot_be_read_at_load_time_is_named_in_the_tool_error(
+    skills_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A skill can change between the scan and the read; the error names its folder."""
+
+    def deny(skill_dir: Path) -> tuple[str, ...]:
+        raise PermissionError(f"Permission denied: {skill_dir}")
+
+    monkeypatch.setattr(server_module, "list_skill_files", deny)
+    server = build_server([skills_dir])
+    async with Client(server) as client:
+        result = await client.call_tool("load_skill", {"name": "nix-flakes"})
+
+    assert result.is_error is True
+    (content,) = result.content
+    assert isinstance(content, TextContent)
+    assert str(skills_dir / "nix-flakes") in content.text

@@ -122,16 +122,18 @@ def list_skill_files(skill_dir: Path) -> tuple[str, ...]:
     """List every file under `skill_dir` other than its own `SKILL.md`.
 
     A path whose resolved target leaves `skill_dir`'s real folder, such as a symlink
-    pointing outside, is left out, so a skill cannot serve something it does not own.
+    pointing outside, is left out, so a skill cannot serve something it does not own. A
+    path that cannot be checked, such as one inside a folder that can be listed but not
+    searched, is left out too.
     """
     resolved_root = skill_dir.resolve()
     other: list[str] = []
     for path in sorted(skill_dir.rglob("*")):
-        if not path.is_file():
-            continue
         if path == manifest_path(skill_dir):
             continue
         try:
+            if not path.is_file():
+                continue
             resolved = path.resolve()
         except OSError:
             continue

@@ -159,11 +159,12 @@ def build_server(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> MCP
             suggestion = f" Closest matches: {', '.join(closest)}." if closest else ""
             raise ToolError(f"unknown skill {name!r}.{suggestion}")
 
-        content = manifest_path(entry.directory).read_text(encoding="utf-8")
-        return LoadSkillResult(
-            content=content,
-            directory=str(entry.directory.resolve()),
-            files=list(list_skill_files(entry.directory)),
-        )
+        try:
+            content = manifest_path(entry.directory).read_text(encoding="utf-8")
+            directory = entry.directory.resolve()
+            files = list(list_skill_files(entry.directory))
+        except (OSError, UnicodeDecodeError) as exc:
+            raise ToolError(f"cannot load skill {name!r} from {entry.directory}: {exc}") from exc
+        return LoadSkillResult(content=content, directory=str(directory), files=files)
 
     return server

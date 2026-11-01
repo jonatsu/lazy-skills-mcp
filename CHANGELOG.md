@@ -32,6 +32,8 @@
   declared minimum could not install on any supported Python.
 - A `SKILL.md` that is not valid UTF-8 is skipped and logged instead of failing the whole scan.
 - When a source disappears during a session, the tool error names it instead of a generic failure.
+- `load_skill` leaves out files inside a folder it can list but not search, instead of failing on Python 3.12 and
+  3.13. When it cannot read a skill, its error names the skill folder.
 
 ## 0.1.1
 
