@@ -385,7 +385,7 @@ test = [
 requires-dist = [
     { name = "attrs", specifier = ">=24.1" },
     { name = "mcp", specifier = ">=2.2,<3" },
-    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "pyyaml", specifier = ">=6.0.1" },
 ]
 
 [package.metadata.requires-dev]
