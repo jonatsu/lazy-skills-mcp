@@ -259,5 +259,5 @@ Recorded on 2026-11-02, before the 0.2.0 tag.
   naming the skill folder. Tests cover both, and the first fails on Python 3.12 without the fix.
 - F3, F4 and F7: Deferred to `BACKLOG.md` with their triggers (slow-scan log line and frontmatter cache, a
   discovery-owned scan object, warnings logged once per process).
-- F5: Accepted as a risk in design section 11; names are not validated against the Agent Skills naming rule.
+- F5: Accepted as a risk for 0.2.0 in design section 11, and queued in `ROADMAP.md` for the next breaking release.
 - F6: Unchanged, as design section 8.3 intends.

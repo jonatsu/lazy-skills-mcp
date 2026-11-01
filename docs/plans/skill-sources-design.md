@@ -300,8 +300,8 @@ The draft's decisions table records the user's choices and the alternatives reje
    must be opt-in, the depth limit may rise but not fall, and configuration layers must not start merging.
 6. Skill names are not checked against the Agent Skills naming rule, only against their folder name, so any folder
    name reaches `find_skills`'s always-loaded description. The trust boundary does not move: whoever can name the
-   folder can already write the `SKILL.md` that `load_skill` returns. Enforcing the rule later would drop skills
-   that 0.2.0 serves, so it would be a breaking change.
+   folder can already write the `SKILL.md` that `load_skill` returns. Enforcing the rule drops skills that 0.2.0
+   serves, so [ROADMAP.md](../../ROADMAP.md) queues it for the next breaking release.
 
 ## 12. Glossary
 

@@ -1,7 +1,7 @@
 # Backlog
 
 Work that is wanted but not queued. An item belongs here when nothing depends on it yet, and its reasoning is worth
-keeping so that it is neither re-derived nor re-proposed. Move an entry to `TODO.md` when something starts depending
+keeping so that it is neither re-derived nor re-proposed. Move an entry to `ROADMAP.md` when something starts depending
 on it.
 
 ## Skill Sources
