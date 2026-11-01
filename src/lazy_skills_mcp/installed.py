@@ -13,7 +13,8 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
-from lazy_skills_mcp.skill import is_child_folder, is_folder, manifest_path, parse_frontmatter
+from lazy_skills_mcp.folders import is_listed_child_folder, is_reachable_folder
+from lazy_skills_mcp.skill import ManifestError, read_frontmatter
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +33,11 @@ def installed_names(skip_dirs: Sequence[Path]) -> frozenset[str]:
     """
     names: set[str] = set()
     for skip_dir in skip_dirs:
-        if not is_folder(skip_dir):
+        if not is_reachable_folder(skip_dir):
             logger.warning("skip folder not found, nothing skipped from it: %s", skip_dir)
             continue
         try:
-            children = [child for child in skip_dir.iterdir() if is_child_folder(child)]
+            children = [child for child in skip_dir.iterdir() if is_listed_child_folder(child)]
         except OSError as exc:
             logger.warning(
                 "skip folder unreadable, nothing skipped from it: %s (%s)", skip_dir, exc
@@ -53,9 +54,7 @@ def installed_names(skip_dirs: Sequence[Path]) -> frozenset[str]:
 def _frontmatter_name(skill_dir: Path) -> str | None:
     """The `name` in `skill_dir`'s SKILL.md frontmatter, or None when it does not parse."""
     try:
-        text = manifest_path(skill_dir).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+        name = read_frontmatter(skill_dir).get("name")
+    except ManifestError:
         return None
-    frontmatter = parse_frontmatter(text)
-    name = frontmatter.get("name") if frontmatter is not None else None
     return name if isinstance(name, str) else None

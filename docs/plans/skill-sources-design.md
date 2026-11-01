@@ -119,7 +119,8 @@ flowchart TD
 | Tool server | Builds `find_skills` and `load_skill` over the catalog builder. Owns the startup name list and its cap. Builds a skill's file list on `load_skill`. |
 | Ranking | Unchanged: ranks catalog entries against a query. |
 
-Source discovery and the installed-name index share one frontmatter parser, today's `_parse_frontmatter`. A
+Source discovery and the installed-name index share one frontmatter reader, `read_frontmatter` in `skill.py`,
+and one set of error-tolerant folder checks in `folders.py`. A
 catalog entry no longer carries its file list; `load_skill` lists files for the one skill it returns.
 
 ### 5.2 Source Discovery Internals

@@ -8,9 +8,7 @@ one bad skill must not take down the rest.
 
 from __future__ import annotations
 
-import errno
 import logging
-import stat
 from pathlib import Path
 
 import attrs
@@ -36,41 +34,8 @@ def manifest_path(skill_dir: Path) -> Path:
     return skill_dir / SKILL_MANIFEST_NAME
 
 
-def is_folder(path: Path) -> bool:
-    """Whether `path` is a folder, treating any filesystem error as "no".
-
-    `Path.is_dir` raises on Python 3.12 and 3.13 when a parent cannot be searched, so
-    callers that must log and continue use this instead.
-    """
-    try:
-        return path.is_dir()
-    except OSError:
-        return False
-
-
-def is_child_folder(path: Path) -> bool:
-    """Whether a listed child is a folder, raising when its parent cannot be searched.
-
-    The child's own entry is checked first, and an error there, such as a permission
-    error from a parent that can be listed but not searched, propagates so the caller's
-    listing handler logs the parent. A symlinked child is then followed on its own: a
-    broken or looping link is simply not a folder, and a target that cannot be reached
-    is logged and skipped, so one bad link never hides its siblings.
-    """
-    try:
-        entry_mode = path.lstat().st_mode
-    except FileNotFoundError:
-        return False
-    if not stat.S_ISLNK(entry_mode):
-        return stat.S_ISDIR(entry_mode)
-    try:
-        return stat.S_ISDIR(path.stat().st_mode)
-    except (FileNotFoundError, NotADirectoryError):
-        return False
-    except OSError as exc:
-        if exc.errno != errno.ELOOP:
-            logger.warning("skipping %s: cannot reach its target (%s)", path, exc)
-        return False
+class ManifestError(ValueError):
+    """A `SKILL.md` that cannot be read or holds no parsable frontmatter; the message says which."""
 
 
 def is_skill_folder(folder: Path) -> bool:
@@ -97,16 +62,9 @@ def read_skill(skill_dir: Path) -> SkillEntry | None:
         `description`, or its `name` differs from the folder's name.
     """
     try:
-        text = manifest_path(skill_dir).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        logger.warning("skipping %s: cannot read %s (%s)", skill_dir, SKILL_MANIFEST_NAME, exc)
-        return None
-
-    frontmatter = parse_frontmatter(text)
-    if frontmatter is None:
-        logger.warning(
-            "skipping %s: no parsable YAML frontmatter in %s", skill_dir, SKILL_MANIFEST_NAME
-        )
+        frontmatter = read_frontmatter(skill_dir)
+    except ManifestError as exc:
+        logger.warning("skipping %s: %s", skill_dir, exc)
         return None
 
     name = frontmatter.get("name")
@@ -124,6 +82,23 @@ def read_skill(skill_dir: Path) -> SkillEntry | None:
         return None
 
     return SkillEntry(name=name, description=description, directory=skill_dir)
+
+
+def read_frontmatter(skill_dir: Path) -> dict[str, object]:
+    """Read the YAML frontmatter of `skill_dir`'s `SKILL.md`.
+
+    Raises:
+        ManifestError: The file cannot be read as UTF-8, or holds no parsable
+            frontmatter mapping.
+    """
+    try:
+        text = manifest_path(skill_dir).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ManifestError(f"cannot read {SKILL_MANIFEST_NAME} ({exc})") from exc
+    frontmatter = parse_frontmatter(text)
+    if frontmatter is None:
+        raise ManifestError(f"no parsable YAML frontmatter in {SKILL_MANIFEST_NAME}")
+    return frontmatter
 
 
 def parse_frontmatter(text: str) -> dict[str, object] | None:

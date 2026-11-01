@@ -22,7 +22,6 @@ import attrs
 SKILLS_DIR_ENV_VAR = "LAZY_SKILLS_MCP_SKILLS_DIR"
 XDG_DATA_HOME_VAR = "XDG_DATA_HOME"
 DEFAULT_RELATIVE_PATH = ("lazy-skills-mcp", "skills")
-_HOME_PREFIX = "~"
 
 
 @attrs.frozen
@@ -59,9 +58,8 @@ def _sources_from_environment() -> tuple[Path, ...]:
 def _default_source() -> Path:
     """``$XDG_DATA_HOME/lazy-skills-mcp/skills``, else ``~/.local/share/lazy-skills-mcp/skills``."""
     xdg_data_home = os.environ.get(XDG_DATA_HOME_VAR)
-    if xdg_data_home:
-        return Path(xdg_data_home, *DEFAULT_RELATIVE_PATH)
-    return Path.home() / ".local" / "share" / Path(*DEFAULT_RELATIVE_PATH)
+    data_home = Path(xdg_data_home) if xdg_data_home else Path.home() / ".local" / "share"
+    return data_home.joinpath(*DEFAULT_RELATIVE_PATH)
 
 
 def _non_empty_paths(values: Sequence[str]) -> tuple[Path, ...]:
@@ -71,8 +69,8 @@ def _non_empty_paths(values: Sequence[str]) -> tuple[Path, ...]:
 
 def _expand_home(value: str) -> Path:
     """Expand a leading ``~`` or ``~/`` to the home folder; leave anything else as given."""
-    if value == _HOME_PREFIX:
+    if value == "~":
         return Path.home()
-    if value.startswith(f"{_HOME_PREFIX}/"):
-        return Path.home() / value.removeprefix(f"{_HOME_PREFIX}/")
+    if value.startswith("~/"):
+        return Path.home() / value.removeprefix("~/")
     return Path(value)

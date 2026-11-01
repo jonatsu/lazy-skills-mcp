@@ -14,7 +14,8 @@ import logging
 from collections.abc import Iterator
 from pathlib import Path
 
-from lazy_skills_mcp.skill import SkillEntry, is_child_folder, is_skill_folder, read_skill
+from lazy_skills_mcp.folders import is_listed_child_folder
+from lazy_skills_mcp.skill import SkillEntry, is_skill_folder, read_skill
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ def _visit(folder: Path, depth: int, visited: dict[Path, int]) -> Iterator[Skill
         children = sorted(
             child
             for child in folder.iterdir()
-            if not child.name.startswith(".") and is_child_folder(child)
+            if not child.name.startswith(".") and is_listed_child_folder(child)
         )
     except OSError as exc:
         logger.warning("skipping %s: cannot list it (%s)", folder, exc)

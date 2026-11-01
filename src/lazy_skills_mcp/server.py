@@ -108,7 +108,7 @@ def build_server(sources: Sequence[Path], skip_dirs: Sequence[Path] = ()) -> MCP
             scanned once here, both to build `find_skills`'s fixed description and to
             fail the server closed before it ever starts.
     """
-    startup_names = sorted(entry.name for entry in load_catalog(sources, skip_dirs))
+    startup_names = [entry.name for entry in load_catalog(sources, skip_dirs)]
 
     server: MCPServer[None] = MCPServer("lazy-skills-mcp", instructions=_SERVER_INSTRUCTIONS)
 

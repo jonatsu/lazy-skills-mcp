@@ -87,6 +87,8 @@ def _first_skill_per_name(sources: Sequence[Path]) -> list[SkillEntry]:
                     entry.name,
                     first.directory,
                 )
+        # A lone empty source already fails closed with its own message, and a source
+        # nested in an earlier one yields nothing new without being empty.
         if not found_any and not reached_before and len(sources) > 1:
             logger.warning("skills source holds no valid skill: %s", source)
     return list(kept.values())

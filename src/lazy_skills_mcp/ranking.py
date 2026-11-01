@@ -19,6 +19,7 @@ from lazy_skills_mcp.skill import SkillEntry
 
 MAX_RESULTS = 10
 _NAME_WEIGHT = 2.0
+_DESCRIPTION_WEIGHT = 1.0
 
 
 def _compact(text: str) -> str:
@@ -59,7 +60,7 @@ def rank_entries(catalog: Sequence[SkillEntry], query: str | None) -> list[Skill
     scored: list[tuple[float, SkillEntry]] = []
     for entry, name, text in zip(catalog, names, texts, strict=True):
         score = sum(
-            weights[term] * (_NAME_WEIGHT if term in name else 1.0)
+            weights[term] * (_NAME_WEIGHT if term in name else _DESCRIPTION_WEIGHT)
             for term in terms
             if term in text
         )
