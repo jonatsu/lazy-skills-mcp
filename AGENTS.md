@@ -22,6 +22,9 @@ not be missed.
   or nothing left to serve, fails the server.
 - Build test skill trees under `tmp_path` with `write_skill` from `tests/skill_tree.py`. Never read a real skills
   folder from a test.
+- Keep the server agnostic of any skills installer or deployment tool. It serves the folders named by
+  `--skills-dir`, `LAZY_SKILLS_MCP_SKILLS_DIR`, or the default location, and reads no installer's paths, lockfiles,
+  or metadata.
 
 ## Documents
 
